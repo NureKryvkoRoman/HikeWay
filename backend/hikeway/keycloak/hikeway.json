@@ -1,0 +1,59 @@
+{
+  "realm": "hikeway-keycloak",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      { "name": "USER" },
+      { "name": "ADMIN" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "backend-test",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes" : [ "acr", "profile", "roles", "basic", "email" ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email" : "admin@mail.com",
+      "firstName" : "Admin",
+      "lastName" : "Admin",
+      "emailVerified" : true,
+      "enabled": true,
+      "createdTimestamp" : 1777504149291,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "user1",
+      "firstName" : "Ivan",
+      "lastName" : "Petrenko",
+      "email" : "user1@mail.com",
+      "emailVerified" : true,
+      "enabled": true,
+      "createdTimestamp" : 1777504149291,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "1234",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"]
+    }
+  ]
+}
