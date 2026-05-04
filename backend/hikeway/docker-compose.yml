@@ -16,3 +16,14 @@ services:
       KC_HTTP_ENABLED: true
       KC_HEALTH_ENABLED: true
       KC_METRICS_ENABLED: true
+  db:
+    container_name: hikeway-postgres
+    image: postgres:18
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: hikeway
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: hikewaydb
+    volumes:
+      - ./pgdata:/var/lib/postgresql
