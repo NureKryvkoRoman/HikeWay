@@ -1,9 +1,11 @@
 package ua.nure.kryvko.hikeway.model;
 
 import jakarta.persistence.*;
+import lombok.Data;
 import org.locationtech.jts.geom.LineString;
 
 @Entity
+@Data
 public class RouteGeometry {
 
     @Id

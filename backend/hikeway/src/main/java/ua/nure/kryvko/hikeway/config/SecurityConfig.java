@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import ua.nure.kryvko.hikeway.model.UserRole;
 
 @Configuration
 @EnableWebSecurity
@@ -23,6 +24,7 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(requests -> {
             requests
+                    .requestMatchers("/admin").hasRole(UserRole.ADMIN.toString())
                     .requestMatchers("/auth/signup", "/auth/signin").permitAll()
                     .anyRequest().authenticated();
         });
