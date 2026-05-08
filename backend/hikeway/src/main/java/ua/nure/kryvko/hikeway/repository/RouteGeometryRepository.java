@@ -8,4 +8,5 @@ import java.util.Optional;
 
 public interface RouteGeometryRepository extends JpaRepository<RouteGeometry, Long> {
     Optional<RouteGeometry> findByRoute(Route route);
+    Optional<RouteGeometry> findByRouteId(Long id);
 }

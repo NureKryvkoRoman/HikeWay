@@ -1,13 +1,14 @@
 package ua.nure.kryvko.hikeway.model.response;
 
 import ua.nure.kryvko.hikeway.model.Difficulty;
+import ua.nure.kryvko.hikeway.model.geojson.GeoJsonLineString;
 
 import java.time.Instant;
 
 /**
- * General-purpose Route DTO, includes only route metadata
+ * Full route data, including GeoJson geometry and route metadata.
  */
-public record RouteResponse(
+public record FullRouteResponse(
         Long id,
         String name,
         String description,
@@ -16,6 +17,7 @@ public record RouteResponse(
         Difficulty difficulty,
         int elevationGain,
         Instant createdAt,
-        String createdBy
+        String createdBy,
+        GeoJsonLineString geometry
 ) {
 }

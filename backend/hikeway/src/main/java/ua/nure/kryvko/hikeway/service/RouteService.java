@@ -16,6 +16,7 @@ import ua.nure.kryvko.hikeway.model.RouteGeometry;
 import ua.nure.kryvko.hikeway.model.geojson.GeoJsonLineString;
 import ua.nure.kryvko.hikeway.model.request.CreateRouteRequest;
 import ua.nure.kryvko.hikeway.model.request.UpdateRouteRequest;
+import ua.nure.kryvko.hikeway.model.response.FullRouteResponse;
 import ua.nure.kryvko.hikeway.model.response.RouteResponse;
 import ua.nure.kryvko.hikeway.repository.RouteGeometryRepository;
 import ua.nure.kryvko.hikeway.repository.RouteRepository;
@@ -38,7 +39,7 @@ public class RouteService {
         this.routeGeometryRepository = routeGeometryRepository;
     }
 
-    public RouteResponse createRoute(CreateRouteRequest request) {
+    public FullRouteResponse createRoute(CreateRouteRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String createdBy = ((Jwt) authentication.getPrincipal()).getSubject();
 
@@ -62,16 +63,27 @@ public class RouteService {
             geometry = routeGeometryRepository.save(geometry);
         }
 
-        return toRouteResponse(route, geometry);
+        return toFullRouteResponse(route, geometry);
+    }
+
+    public FullRouteResponse getRouteWithGeometry(Long id) {
+        Route route = getRouteEntity(id);
+        RouteGeometry geometry = routeGeometryRepository.findByRoute(route).orElse(null);
+        return toFullRouteResponse(route, geometry);
     }
 
     public RouteResponse getRoute(Long id) {
         Route route = getRouteEntity(id);
-        RouteGeometry geometry = routeGeometryRepository.findByRoute(route).orElse(null);
-        return toRouteResponse(route, geometry);
+        return toRouteResponse(route);
     }
 
-    public RouteResponse updateRoute(Long id, UpdateRouteRequest request) {
+    public GeoJsonLineString getRouteGeometry(Long routeId) {
+        RouteGeometry geometry = routeGeometryRepository.findByRouteId(routeId)
+                .orElseThrow(() -> new RouteNotFoundException("Route not found with id: " + routeId));
+        return toGeoJson(geometry.getLine());
+    }
+
+    public FullRouteResponse updateRoute(Long id, UpdateRouteRequest request) {
         Route route = getRouteEntity(id);
 
         if (request.name() != null) route.setName(request.name());
@@ -93,7 +105,7 @@ public class RouteService {
             geometry = routeGeometryRepository.save(geometry);
         }
 
-        return toRouteResponse(route, geometry);
+        return toFullRouteResponse(route, geometry);
     }
 
     public void deleteRoute(Long id) {
@@ -107,8 +119,8 @@ public class RouteService {
                 .orElseThrow(() -> new RouteNotFoundException("Route not found with id: " + id));
     }
 
-    private RouteResponse toRouteResponse(Route route, RouteGeometry geometry) {
-        return new RouteResponse(
+    private FullRouteResponse toFullRouteResponse(Route route, RouteGeometry geometry) {
+        return new FullRouteResponse(
                 route.getId(),
                 route.getName(),
                 route.getDescription(),
@@ -119,6 +131,20 @@ public class RouteService {
                 route.getCreatedAt(),
                 route.getCreatedBy(),
                 geometry == null ? null : toGeoJson(geometry.getLine())
+        );
+    }
+
+    private RouteResponse toRouteResponse(Route route) {
+        return new RouteResponse(
+                route.getId(),
+                route.getName(),
+                route.getDescription(),
+                route.getDistanceKm(),
+                route.getEstimatedTimeMinutes(),
+                route.getDifficulty(),
+                route.getElevationGain(),
+                route.getCreatedAt(),
+                route.getCreatedBy()
         );
     }
 
