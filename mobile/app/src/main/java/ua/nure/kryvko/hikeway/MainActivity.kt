@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import org.maplibre.compose.map.MaplibreMap
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
 
 class MainActivity : ComponentActivity() {
@@ -60,10 +61,11 @@ fun HikeWayApp() {
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Greeting(
-                name = "Android",
-                modifier = Modifier.padding(innerPadding)
-            )
+            MaplibreMap(modifier = Modifier.padding(innerPadding))
+//            Greeting(
+//                name = "Android",
+//                modifier = Modifier.padding(innerPadding)
+//            )
         }
     }
 }
