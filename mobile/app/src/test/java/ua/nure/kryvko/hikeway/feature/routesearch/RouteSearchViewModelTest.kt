@@ -85,15 +85,30 @@ class RouteSearchViewModelTest {
     }
 
     @Test
-    fun pickingRouteCreatesActiveSession() = runTest(dispatcher) {
+    fun selectingRouteShowsPreviewWithoutStartingSession() = runTest(dispatcher) {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
         val route = viewModel.uiState.value.routes.first()
-        viewModel.pickRoute(route)
+        viewModel.previewRoute(route)
+        runCurrent()
+
+        assertEquals(route.id, viewModel.uiState.value.previewRoute?.id)
+        assertEquals(null, viewModel.uiState.value.pickingSession)
+    }
+
+    @Test
+    fun startingPreviewedRouteCreatesActiveSessionAndClearsPreview() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        val route = viewModel.uiState.value.routes.first()
+        viewModel.previewRoute(route)
+        viewModel.startPreviewedRoute()
         runCurrent()
 
         val session = viewModel.uiState.value.pickingSession
+        assertEquals(null, viewModel.uiState.value.previewRoute)
         assertEquals(route.id, session?.route?.id)
         assertEquals(RoutePickingStatus.ACTIVE, session?.status)
         assertEquals(0, session?.pointIndex)
@@ -101,11 +116,24 @@ class RouteSearchViewModelTest {
     }
 
     @Test
+    fun dismissingPreviewKeepsSearchResults() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.dismissRoutePreview()
+
+        assertEquals(null, viewModel.uiState.value.previewRoute)
+        assertEquals(5, viewModel.uiState.value.routes.size)
+    }
+
+    @Test
     fun pauseStopsPositionAdvancement() = runTest(dispatcher) {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         runCurrent()
         viewModel.pauseRoute()
         val pausedIndex = viewModel.uiState.value.pickingSession?.pointIndex
@@ -122,7 +150,8 @@ class RouteSearchViewModelTest {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         runCurrent()
         viewModel.pauseRoute()
         viewModel.unpauseRoute()
@@ -139,7 +168,8 @@ class RouteSearchViewModelTest {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         runCurrent()
         viewModel.finishRoute()
         advanceUntilIdle()
@@ -152,7 +182,8 @@ class RouteSearchViewModelTest {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         advanceTimeBy(2_000)
         runCurrent()
         viewModel.pauseRoute()
@@ -170,7 +201,8 @@ class RouteSearchViewModelTest {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         advanceTimeBy(2_000)
         runCurrent()
 
@@ -185,7 +217,8 @@ class RouteSearchViewModelTest {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         advanceTimeBy(2_000)
         runCurrent()
         viewModel.pauseRoute()
@@ -206,7 +239,8 @@ class RouteSearchViewModelTest {
         val viewModel = viewModel(StubLocationProvider())
         advanceUntilIdle()
 
-        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
         runCurrent()
         viewModel.pauseRoute()
         viewModel.finishRoute()

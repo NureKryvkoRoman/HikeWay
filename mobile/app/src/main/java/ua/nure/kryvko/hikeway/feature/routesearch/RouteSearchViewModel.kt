@@ -31,6 +31,7 @@ data class RouteSearchUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val saveErrorMessage: String? = null,
+    val previewRoute: Route? = null,
     val pickingSession: RoutePickingSession? = null,
 )
 
@@ -74,12 +75,27 @@ class RouteSearchViewModel(
         refresh(emptyCriteria)
     }
 
-    fun pickRoute(route: Route) {
+    fun previewRoute(route: Route) {
+        _uiState.update { it.copy(previewRoute = route, saveErrorMessage = null) }
+    }
+
+    fun dismissRoutePreview() {
+        _uiState.update { it.copy(previewRoute = null) }
+    }
+
+    fun startPreviewedRoute() {
+        val route = _uiState.value.previewRoute ?: return
+        startRoute(route)
+    }
+
+    private fun startRoute(route: Route) {
         val progress = initialProgress(route) ?: return
         trackingJob?.cancel()
+        activeTimerJob?.cancel()
         _uiState.update {
             it.copy(
                 saveErrorMessage = null,
+                previewRoute = null,
                 pickingSession = RoutePickingSession(
                     route = route,
                     userPosition = progress.position,

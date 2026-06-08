@@ -69,8 +69,21 @@ class RouteSearchScreenTest {
     }
 
     @Test
-    fun pickingRouteShowsPauseThenUnpauseAndFinishControls() {
+    fun routeCardShowsPreviewAndBackReturnsToResults() {
         composeRule.onNodeWithText("High Castle Loop").performClick()
+
+        composeRule.onNodeWithText("Route overview").assertIsDisplayed()
+        composeRule.onNodeWithText("A short city-edge climb with a panoramic viewpoint.").assertIsDisplayed()
+        composeRule.onNodeWithText("Start route").assertIsDisplayed()
+
+        composeRule.onNodeWithText("Back").performClick()
+        composeRule.onNodeWithText("5 routes found").assertIsDisplayed()
+    }
+
+    @Test
+    fun startRouteFromPreviewShowsPauseThenUnpauseAndFinishControls() {
+        composeRule.onNodeWithText("High Castle Loop").performClick()
+        composeRule.onNodeWithText("Start route").performClick()
 
         composeRule.onNodeWithText("Picked route").assertIsDisplayed()
         composeRule.onNodeWithText("Pause").assertIsDisplayed()
@@ -86,9 +99,26 @@ class RouteSearchScreenTest {
     @Test
     fun pickingRouteShowsHikeStats() {
         composeRule.onNodeWithText("High Castle Loop").performClick()
+        composeRule.onNodeWithText("Start route").performClick()
 
         composeRule.onNodeWithText("Active time: 00:00:00").assertIsDisplayed()
         composeRule.onNodeWithText("Walked distance: 0.00 km").assertIsDisplayed()
+    }
+
+    @Test
+    fun routePreviewShowsMetadata() {
+        composeRule.onNodeWithText("High Castle Loop").performClick()
+
+        composeRule.onNodeWithText("Distance").assertIsDisplayed()
+        composeRule.onNodeWithText("4.8 km").assertIsDisplayed()
+        composeRule.onNodeWithText("Estimated time").assertIsDisplayed()
+        composeRule.onNodeWithText("95 min").assertIsDisplayed()
+        composeRule.onNodeWithText("Elevation gain").assertIsDisplayed()
+        composeRule.onNodeWithText("140 m").assertIsDisplayed()
+        composeRule.onNodeWithText("Difficulty").assertIsDisplayed()
+        composeRule.onNodeWithText("Easy").assertIsDisplayed()
+        composeRule.onNodeWithText("Terrain").assertIsDisplayed()
+        composeRule.onNodeWithText("Forest").assertIsDisplayed()
     }
 }
 

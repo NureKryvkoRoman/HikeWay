@@ -1,5 +1,6 @@
 package ua.nure.kryvko.hikeway.feature.routesearch
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,29 +69,45 @@ fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
     val state by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
     val pickingSession = state.pickingSession
+    val previewRoute = state.previewRoute
+
+    BackHandler(enabled = previewRoute != null) {
+        viewModel.dismissRoutePreview()
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         RoutesMap(
-            routes = pickingSession?.let { listOf(it.route) } ?: state.routes,
+            routes = when {
+                pickingSession != null -> listOf(pickingSession.route)
+                previewRoute != null -> listOf(previewRoute)
+                else -> state.routes
+            },
             walkedPath = pickingSession?.walkedPath ?: emptyList(),
             userPosition = pickingSession?.userPosition,
             userBearingDegrees = pickingSession?.bearingDegrees ?: 0.0,
-            pickedMode = pickingSession != null,
+            highlightedMode = pickingSession != null || previewRoute != null,
         )
-        if (pickingSession == null) {
-            ResultsPanel(
-                state = state,
-                onRouteClick = viewModel::pickRoute,
-                onFilterClick = { showFilters = true },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
-        } else {
+        if (pickingSession != null) {
             PickingPanel(
                 session = pickingSession,
                 saveErrorMessage = state.saveErrorMessage,
                 onPause = viewModel::pauseRoute,
                 onUnpause = viewModel::unpauseRoute,
                 onFinish = viewModel::finishRoute,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        } else if (previewRoute != null) {
+            RoutePreviewPanel(
+                route = previewRoute,
+                onBack = viewModel::dismissRoutePreview,
+                onStartRoute = viewModel::startPreviewedRoute,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        } else {
+            ResultsPanel(
+                state = state,
+                onRouteClick = viewModel::previewRoute,
+                onFilterClick = { showFilters = true },
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -121,7 +138,7 @@ private fun RoutesMap(
     walkedPath: List<GeoPoint>,
     userPosition: GeoPoint?,
     userBearingDegrees: Double,
-    pickedMode: Boolean,
+    highlightedMode: Boolean,
 ) {
     val cameraState = rememberCameraState(
         firstPosition = CameraPosition(
@@ -143,8 +160,8 @@ private fun RoutesMap(
         LineLayer(
             id = "matching-routes",
             source = routesSource,
-            color = const(if (pickedMode) Color(0xFF0B57D0) else Color(0xFF176B3A)),
-            width = const(if (pickedMode) 6.dp else 4.dp),
+            color = const(if (highlightedMode) Color(0xFF0B57D0) else Color(0xFF176B3A)),
+            width = const(if (highlightedMode) 6.dp else 4.dp),
         )
         if (walkedPath.isNotEmpty()) {
             val walkedPathSource = rememberGeoJsonSource(GeoJsonData.JsonString(walkedPathGeoJson))
@@ -174,6 +191,54 @@ private fun RoutesMap(
                 iconRotate = const(userBearingDegrees.toFloat()),
             )
         }
+    }
+}
+
+@Composable
+private fun RoutePreviewPanel(
+    route: Route,
+    onBack: () -> Unit,
+    onStartRoute: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(max = 380.dp),
+        tonalElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Route overview", style = MaterialTheme.typography.labelLarge)
+            Text(route.name, style = MaterialTheme.typography.titleMedium)
+            Text(route.description, style = MaterialTheme.typography.bodyMedium)
+            RouteInfoRow("Distance", "${route.distanceKm} km")
+            RouteInfoRow("Estimated time", "${route.estimatedTimeMinutes} min")
+            RouteInfoRow("Elevation gain", "${route.elevationGainMeters} m")
+            RouteInfoRow("Difficulty", route.difficulty.label())
+            RouteInfoRow("Terrain", route.terrain.label())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onBack) {
+                    Text("Back")
+                }
+                Button(onClick = onStartRoute) {
+                    Text("Start route")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
