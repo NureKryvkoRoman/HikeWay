@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -34,19 +37,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.image
 import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.layers.SymbolLayer
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
+import org.maplibre.compose.expressions.value.IconRotationAlignment
 import org.maplibre.spatialk.geojson.Position
 import ua.nure.kryvko.hikeway.core.model.Difficulty
+import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.Terrain
+import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingSession
+import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 
 private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
@@ -55,14 +66,31 @@ private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
     val state by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
+    val pickingSession = state.pickingSession
 
     Box(modifier = Modifier.fillMaxSize()) {
-        RoutesMap(routes = state.routes)
-        ResultsPanel(
-            state = state,
-            onFilterClick = { showFilters = true },
-            modifier = Modifier.align(Alignment.BottomCenter),
+        RoutesMap(
+            routes = pickingSession?.let { listOf(it.route) } ?: state.routes,
+            userPosition = pickingSession?.userPosition,
+            userBearingDegrees = pickingSession?.bearingDegrees ?: 0.0,
+            pickedMode = pickingSession != null,
         )
+        if (pickingSession == null) {
+            ResultsPanel(
+                state = state,
+                onRouteClick = viewModel::pickRoute,
+                onFilterClick = { showFilters = true },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        } else {
+            PickingPanel(
+                session = pickingSession,
+                onPause = viewModel::pauseRoute,
+                onUnpause = viewModel::unpauseRoute,
+                onFinish = viewModel::finishRoute,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
     }
 
     if (showFilters) {
@@ -85,7 +113,12 @@ fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
 }
 
 @Composable
-private fun RoutesMap(routes: List<Route>) {
+private fun RoutesMap(
+    routes: List<Route>,
+    userPosition: GeoPoint?,
+    userBearingDegrees: Double,
+    pickedMode: Boolean,
+) {
     val cameraState = rememberCameraState(
         firstPosition = CameraPosition(
             target = Position(longitude = 24.0316, latitude = 49.8429),
@@ -93,6 +126,8 @@ private fun RoutesMap(routes: List<Route>) {
         )
     )
     val geoJson = remember(routes) { routes.toGeoJson() }
+    val userGeoJson = remember(userPosition) { userPosition.toGeoJson() }
+    val arrowPainter = rememberVectorPainter(Icons.Default.KeyboardArrowUp)
 
     MaplibreMap(
         baseStyle = BaseStyle.Uri(MAP_STYLE),
@@ -103,15 +138,35 @@ private fun RoutesMap(routes: List<Route>) {
         LineLayer(
             id = "matching-routes",
             source = routesSource,
-            color = const(Color(0xFF176B3A)),
-            width = const(4.dp),
+            color = const(if (pickedMode) Color(0xFF0B57D0) else Color(0xFF176B3A)),
+            width = const(if (pickedMode) 6.dp else 4.dp),
         )
+        if (userPosition != null) {
+            val userSource = rememberGeoJsonSource(GeoJsonData.JsonString(userGeoJson))
+            SymbolLayer(
+                id = "user-position",
+                source = userSource,
+                iconImage = image(
+                    value = arrowPainter,
+                    size = DpSize(32.dp, 32.dp),
+                    drawAsSdf = true,
+                ),
+                iconColor = const(Color(0xFFD93025)),
+                iconHaloColor = const(Color.White),
+                iconHaloWidth = const(2.dp),
+                iconAllowOverlap = const(true),
+                iconIgnorePlacement = const(true),
+                iconRotationAlignment = const(IconRotationAlignment.Map),
+                iconRotate = const(userBearingDegrees.toFloat()),
+            )
+        }
     }
 }
 
 @Composable
 private fun ResultsPanel(
     state: RouteSearchUiState,
+    onRouteClick: (Route) -> Unit,
     onFilterClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,7 +203,7 @@ private fun ResultsPanel(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(state.routes, key = { it.id }) { route ->
-                        RouteCard(route)
+                        RouteCard(route, onClick = { onRouteClick(route) })
                     }
                 }
             }
@@ -157,8 +212,12 @@ private fun ResultsPanel(
 }
 
 @Composable
-private fun RouteCard(route: Route) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun RouteCard(route: Route, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(route.name, style = MaterialTheme.typography.titleSmall)
             Text(
@@ -171,6 +230,53 @@ private fun RouteCard(route: Route) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+        }
+    }
+}
+
+@Composable
+private fun PickingPanel(
+    session: RoutePickingSession,
+    onPause: () -> Unit,
+    onUnpause: () -> Unit,
+    onFinish: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        tonalElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Picked route", style = MaterialTheme.typography.labelLarge)
+            Text(session.route.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "${session.route.distanceKm} km | ${session.route.estimatedTimeMinutes} min | " +
+                    "${session.route.elevationGainMeters} m gain",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Position arrow: ${session.bearingDegrees.toInt()}° | ${session.status.label()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                when (session.status) {
+                    RoutePickingStatus.ACTIVE -> Button(onClick = onPause) {
+                        Text("Pause")
+                    }
+                    RoutePickingStatus.PAUSED -> {
+                        Button(onClick = onUnpause) {
+                            Text("Unpause")
+                        }
+                        TextButton(onClick = onFinish) {
+                            Text("Finish")
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -317,6 +423,16 @@ private fun List<Route>.toGeoJson(): String {
     return """{"type":"FeatureCollection","features":[$features]}"""
 }
 
+private fun GeoPoint?.toGeoJson(): String {
+    return if (this == null) {
+        """{"type":"FeatureCollection","features":[]}"""
+    } else {
+        """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[$longitude,$latitude]}}"""
+    }
+}
+
 private fun Difficulty.label() = name.lowercase().replaceFirstChar(Char::uppercase)
 
 private fun Terrain.label() = name.lowercase().replaceFirstChar(Char::uppercase)
+
+private fun RoutePickingStatus.label() = name.lowercase().replaceFirstChar(Char::uppercase)

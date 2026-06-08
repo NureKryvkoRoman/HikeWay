@@ -35,7 +35,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val routeSearchViewModel = ViewModelProvider(
             this,
-            RouteSearchViewModel.factory(container.searchRoutes),
+            RouteSearchViewModel.factory(
+                searchRoutes = container.searchRoutes,
+                routeTrackingProvider = container.routeTrackingProvider,
+            ),
         )[RouteSearchViewModel::class.java]
 
         setContent {

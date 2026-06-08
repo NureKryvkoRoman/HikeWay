@@ -10,6 +10,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
+import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
@@ -21,10 +22,11 @@ class RouteSearchScreenTest {
     @Before
     fun setUp() {
         val viewModel = RouteSearchViewModel(
-            SearchRoutesUseCase(
+            searchRoutes = SearchRoutesUseCase(
                 repository = StubRouteRepository(),
                 locationProvider = StubLocationProvider(),
-            )
+            ),
+            routeTrackingProvider = StubRouteTrackingProvider(),
         )
         composeRule.setContent {
             HikeWayTheme {
@@ -53,5 +55,20 @@ class RouteSearchScreenTest {
         composeRule.onNodeWithText("Apply").performClick()
 
         composeRule.onNodeWithText("No routes match the applied filters.").assertIsDisplayed()
+    }
+
+    @Test
+    fun pickingRouteShowsPauseThenUnpauseAndFinishControls() {
+        composeRule.onNodeWithText("High Castle Loop").performClick()
+
+        composeRule.onNodeWithText("Picked route").assertIsDisplayed()
+        composeRule.onNodeWithText("Pause").assertIsDisplayed()
+
+        composeRule.onNodeWithText("Pause").performClick()
+        composeRule.onNodeWithText("Unpause").assertIsDisplayed()
+        composeRule.onNodeWithText("Finish").assertIsDisplayed()
+
+        composeRule.onNodeWithText("Finish").performClick()
+        composeRule.onNodeWithText("5 routes found").assertIsDisplayed()
     }
 }
