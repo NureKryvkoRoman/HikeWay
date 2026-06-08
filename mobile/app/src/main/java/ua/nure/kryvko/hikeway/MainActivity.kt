@@ -28,16 +28,18 @@ import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchViewModel
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
 
 class MainActivity : ComponentActivity() {
-    private val container = AppContainer()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val container = AppContainer(applicationContext)
         val routeSearchViewModel = ViewModelProvider(
             this,
             RouteSearchViewModel.factory(
                 searchRoutes = container.searchRoutes,
                 routeTrackingProvider = container.routeTrackingProvider,
+                saveCompletedHike = container.saveCompletedHike,
+                timeProvider = container.timeProvider,
+                activeTimer = container.activeTimer,
             ),
         )[RouteSearchViewModel::class.java]
 

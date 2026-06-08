@@ -12,8 +12,16 @@ import org.junit.Test
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
 import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
+import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
+import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
+import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
+import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
+import ua.nure.kryvko.hikeway.domain.hikelogging.SystemTimeProvider
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 
 class RouteSearchScreenTest {
     @get:Rule
@@ -27,6 +35,9 @@ class RouteSearchScreenTest {
                 locationProvider = StubLocationProvider(),
             ),
             routeTrackingProvider = StubRouteTrackingProvider(),
+            saveCompletedHike = SaveCompletedHikeUseCase(FakeHikeLogRepository()),
+            timeProvider = SystemTimeProvider(),
+            activeTimer = NoOpActiveTimer(),
         )
         composeRule.setContent {
             HikeWayTheme {
@@ -71,4 +82,22 @@ class RouteSearchScreenTest {
         composeRule.onNodeWithText("Finish").performClick()
         composeRule.onNodeWithText("5 routes found").assertIsDisplayed()
     }
+
+    @Test
+    fun pickingRouteShowsHikeStats() {
+        composeRule.onNodeWithText("High Castle Loop").performClick()
+
+        composeRule.onNodeWithText("Active time: 00:00:00").assertIsDisplayed()
+        composeRule.onNodeWithText("Walked distance: 0.00 km").assertIsDisplayed()
+    }
+}
+
+private class NoOpActiveTimer : ActiveTimer {
+    override fun ticks(periodMillis: Long): Flow<Long> = flowOf()
+}
+
+private class FakeHikeLogRepository : HikeLogRepository {
+    override suspend fun save(log: HikeLog): Long = 1L
+
+    override fun observeAll(): Flow<List<HikeLog>> = emptyFlow()
 }

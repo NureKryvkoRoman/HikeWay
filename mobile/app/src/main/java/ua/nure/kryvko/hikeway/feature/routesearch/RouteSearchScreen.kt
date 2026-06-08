@@ -52,6 +52,7 @@ import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.expressions.value.IconRotationAlignment
 import org.maplibre.spatialk.geojson.Position
+import java.util.Locale
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
@@ -71,6 +72,7 @@ fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
     Box(modifier = Modifier.fillMaxSize()) {
         RoutesMap(
             routes = pickingSession?.let { listOf(it.route) } ?: state.routes,
+            walkedPath = pickingSession?.walkedPath ?: emptyList(),
             userPosition = pickingSession?.userPosition,
             userBearingDegrees = pickingSession?.bearingDegrees ?: 0.0,
             pickedMode = pickingSession != null,
@@ -85,6 +87,7 @@ fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
         } else {
             PickingPanel(
                 session = pickingSession,
+                saveErrorMessage = state.saveErrorMessage,
                 onPause = viewModel::pauseRoute,
                 onUnpause = viewModel::unpauseRoute,
                 onFinish = viewModel::finishRoute,
@@ -115,6 +118,7 @@ fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
 @Composable
 private fun RoutesMap(
     routes: List<Route>,
+    walkedPath: List<GeoPoint>,
     userPosition: GeoPoint?,
     userBearingDegrees: Double,
     pickedMode: Boolean,
@@ -126,6 +130,7 @@ private fun RoutesMap(
         )
     )
     val geoJson = remember(routes) { routes.toGeoJson() }
+    val walkedPathGeoJson = remember(walkedPath) { walkedPath.toWalkedPathGeoJson() }
     val userGeoJson = remember(userPosition) { userPosition.toGeoJson() }
     val arrowPainter = rememberVectorPainter(Icons.Default.KeyboardArrowUp)
 
@@ -141,6 +146,15 @@ private fun RoutesMap(
             color = const(if (pickedMode) Color(0xFF0B57D0) else Color(0xFF176B3A)),
             width = const(if (pickedMode) 6.dp else 4.dp),
         )
+        if (walkedPath.isNotEmpty()) {
+            val walkedPathSource = rememberGeoJsonSource(GeoJsonData.JsonString(walkedPathGeoJson))
+            LineLayer(
+                id = "walked-path",
+                source = walkedPathSource,
+                color = const(Color(0xFFD93025)),
+                width = const(4.dp),
+            )
+        }
         if (userPosition != null) {
             val userSource = rememberGeoJsonSource(GeoJsonData.JsonString(userGeoJson))
             SymbolLayer(
@@ -237,6 +251,7 @@ private fun RouteCard(route: Route, onClick: () -> Unit) {
 @Composable
 private fun PickingPanel(
     session: RoutePickingSession,
+    saveErrorMessage: String?,
     onPause: () -> Unit,
     onUnpause: () -> Unit,
     onFinish: () -> Unit,
@@ -262,6 +277,21 @@ private fun PickingPanel(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
+            Text(
+                "Active time: ${session.activeElapsedMillis.formatDuration()}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Walked distance: ${session.walkedDistanceKm.formatDistance()}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (saveErrorMessage != null) {
+                Text(
+                    saveErrorMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (session.status) {
                     RoutePickingStatus.ACTIVE -> Button(onClick = onPause) {
@@ -431,8 +461,27 @@ private fun GeoPoint?.toGeoJson(): String {
     }
 }
 
+private fun List<GeoPoint>.toWalkedPathGeoJson(): String {
+    val coordinates = joinToString(separator = ",") {
+        "[${it.longitude},${it.latitude}]"
+    }
+    return """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[$coordinates]}}"""
+}
+
 private fun Difficulty.label() = name.lowercase().replaceFirstChar(Char::uppercase)
 
 private fun Terrain.label() = name.lowercase().replaceFirstChar(Char::uppercase)
 
 private fun RoutePickingStatus.label() = name.lowercase().replaceFirstChar(Char::uppercase)
+
+private fun Long.formatDuration(): String {
+    val totalSeconds = this / 1_000
+    val hours = totalSeconds / 3_600
+    val minutes = (totalSeconds % 3_600) / 60
+    val seconds = totalSeconds % 60
+    return "%02d:%02d:%02d".format(Locale.US, hours, minutes, seconds)
+}
+
+private fun Double.formatDistance(): String {
+    return "%.2f km".format(Locale.US, this)
+}

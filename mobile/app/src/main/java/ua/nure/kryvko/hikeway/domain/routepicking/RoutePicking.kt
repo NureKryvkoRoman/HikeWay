@@ -22,6 +22,10 @@ data class RoutePickingSession(
     val bearingDegrees: Double,
     val pointIndex: Int,
     val status: RoutePickingStatus,
+    val walkedPath: List<GeoPoint>,
+    val walkedDistanceKm: Double,
+    val activeElapsedMillis: Long,
+    val startedAtEpochMillis: Long,
 )
 
 interface RouteTrackingProvider {

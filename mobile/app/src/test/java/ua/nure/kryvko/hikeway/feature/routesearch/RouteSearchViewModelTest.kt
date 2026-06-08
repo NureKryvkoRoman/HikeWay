@@ -21,17 +21,30 @@ import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
+import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
+import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
+import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
+import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
+import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RouteSearchViewModelTest {
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var timeProvider: FakeTimeProvider
+    private lateinit var hikeLogRepository: FakeHikeLogRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        timeProvider = FakeTimeProvider()
+        hikeLogRepository = FakeHikeLogRepository()
     }
 
     @After
@@ -84,6 +97,7 @@ class RouteSearchViewModelTest {
         assertEquals(route.id, session?.route?.id)
         assertEquals(RoutePickingStatus.ACTIVE, session?.status)
         assertEquals(0, session?.pointIndex)
+        viewModel.pauseRoute()
     }
 
     @Test
@@ -117,6 +131,7 @@ class RouteSearchViewModelTest {
 
         assertEquals(RoutePickingStatus.ACTIVE, viewModel.uiState.value.pickingSession?.status)
         assertEquals(1, viewModel.uiState.value.pickingSession?.pointIndex)
+        viewModel.pauseRoute()
     }
 
     @Test
@@ -127,8 +142,78 @@ class RouteSearchViewModelTest {
         viewModel.pickRoute(viewModel.uiState.value.routes.first())
         runCurrent()
         viewModel.finishRoute()
+        advanceUntilIdle()
 
         assertEquals(null, viewModel.uiState.value.pickingSession)
+    }
+
+    @Test
+    fun activeElapsedTimeAdvancesOnlyWhileUnpaused() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        advanceTimeBy(2_000)
+        runCurrent()
+        viewModel.pauseRoute()
+        val elapsedAtPause = viewModel.uiState.value.pickingSession?.activeElapsedMillis
+
+        advanceTimeBy(5_000)
+        runCurrent()
+
+        assertEquals(2_000L, elapsedAtPause)
+        assertEquals(elapsedAtPause, viewModel.uiState.value.pickingSession?.activeElapsedMillis)
+    }
+
+    @Test
+    fun walkedPathAndDistanceAccumulateWhileActive() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        advanceTimeBy(2_000)
+        runCurrent()
+
+        val session = viewModel.uiState.value.pickingSession
+        assertEquals(3, session?.walkedPath?.size)
+        assertEquals(true, (session?.walkedDistanceKm ?: 0.0) > 0.0)
+        viewModel.pauseRoute()
+    }
+
+    @Test
+    fun finishSavesCompletedHikeWithActiveAndWallClockDurations() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        advanceTimeBy(2_000)
+        runCurrent()
+        viewModel.pauseRoute()
+        timeProvider.now += 10_000
+        viewModel.finishRoute()
+        advanceUntilIdle()
+
+        val saved = hikeLogRepository.saved.single()
+        assertEquals(2_000L, saved.activeDurationMillis)
+        assertEquals(10_000L, saved.wallClockDurationMillis)
+        assertEquals(true, saved.path.size >= 2)
+        assertEquals(null, viewModel.uiState.value.pickingSession)
+    }
+
+    @Test
+    fun saveFailureKeepsPausedSessionAndShowsError() = runTest(dispatcher) {
+        hikeLogRepository.failSaves = true
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.pickRoute(viewModel.uiState.value.routes.first())
+        runCurrent()
+        viewModel.pauseRoute()
+        viewModel.finishRoute()
+        advanceUntilIdle()
+
+        assertEquals(RoutePickingStatus.PAUSED, viewModel.uiState.value.pickingSession?.status)
+        assertNotNull(viewModel.uiState.value.saveErrorMessage)
     }
 
     private fun viewModel(locationProvider: LocationProvider): RouteSearchViewModel {
@@ -138,6 +223,37 @@ class RouteSearchViewModelTest {
                 locationProvider = locationProvider,
             ),
             routeTrackingProvider = StubRouteTrackingProvider(stepDelayMillis = 1_000L),
+            saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository),
+            timeProvider = timeProvider,
+            activeTimer = TestActiveTimer(),
         )
     }
+}
+
+private class FakeTimeProvider : TimeProvider {
+    var now = 1_000L
+
+    override fun currentTimeMillis(): Long = now
+}
+
+private class TestActiveTimer : ActiveTimer {
+    override fun ticks(periodMillis: Long): Flow<Long> = flow {
+        while (true) {
+            delay(periodMillis)
+            emit(periodMillis)
+        }
+    }
+}
+
+private class FakeHikeLogRepository : HikeLogRepository {
+    val saved = mutableListOf<HikeLog>()
+    var failSaves = false
+
+    override suspend fun save(log: HikeLog): Long {
+        if (failSaves) error("save failed")
+        saved += log
+        return saved.size.toLong()
+    }
+
+    override fun observeAll(): Flow<List<HikeLog>> = emptyFlow()
 }
