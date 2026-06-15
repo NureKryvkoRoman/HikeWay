@@ -10,6 +10,7 @@ import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
+import ua.nure.kryvko.hikeway.domain.hikelogging.ObserveCompletedHikesUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.SystemActiveTimer
 import ua.nure.kryvko.hikeway.domain.hikelogging.SystemTimeProvider
@@ -33,4 +34,5 @@ class AppContainer(context: Context) {
 
     val searchRoutes = SearchRoutesUseCase(routeRepository, locationProvider)
     val saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository)
+    val observeCompletedHikes = ObserveCompletedHikesUseCase(hikeLogRepository)
 }

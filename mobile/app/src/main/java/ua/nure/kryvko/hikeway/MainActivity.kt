@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -23,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModelProvider
 import ua.nure.kryvko.hikeway.app.AppContainer
+import ua.nure.kryvko.hikeway.feature.completedhikes.CompletedHikesScreen
+import ua.nure.kryvko.hikeway.feature.completedhikes.CompletedHikesViewModel
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchScreen
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchViewModel
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
@@ -42,17 +45,29 @@ class MainActivity : ComponentActivity() {
                 activeTimer = container.activeTimer,
             ),
         )[RouteSearchViewModel::class.java]
+        val completedHikesViewModel = ViewModelProvider(
+            this,
+            CompletedHikesViewModel.factory(
+                observeCompletedHikes = container.observeCompletedHikes,
+            ),
+        )[CompletedHikesViewModel::class.java]
 
         setContent {
             HikeWayTheme {
-                HikeWayApp(routeSearchViewModel)
+                HikeWayApp(
+                    routeSearchViewModel = routeSearchViewModel,
+                    completedHikesViewModel = completedHikesViewModel,
+                )
             }
         }
     }
 }
 
 @Composable
-fun HikeWayApp(routeSearchViewModel: RouteSearchViewModel) {
+fun HikeWayApp(
+    routeSearchViewModel: RouteSearchViewModel,
+    completedHikesViewModel: CompletedHikesViewModel,
+) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
 
     NavigationSuiteScaffold(
@@ -69,6 +84,7 @@ fun HikeWayApp(routeSearchViewModel: RouteSearchViewModel) {
     ) {
         when (currentDestination) {
             AppDestination.HOME -> RouteSearchScreen(routeSearchViewModel)
+            AppDestination.COMPLETED_HIKES -> CompletedHikesScreen(completedHikesViewModel)
             else -> PlaceholderScreen(currentDestination.label)
         }
     }
@@ -86,6 +102,7 @@ enum class AppDestination(
     val icon: ImageVector,
 ) {
     HOME("Home", Icons.Default.Home),
+    COMPLETED_HIKES("Completed hikes", Icons.AutoMirrored.Filled.List),
     FAVORITES("Favorites", Icons.Default.Favorite),
     PROFILE("Profile", Icons.Default.AccountBox),
 }

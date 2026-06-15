@@ -28,6 +28,12 @@ class SaveCompletedHikeUseCase(
     suspend operator fun invoke(log: HikeLog): Long = repository.save(log)
 }
 
+class ObserveCompletedHikesUseCase(
+    private val repository: HikeLogRepository,
+) {
+    operator fun invoke(): Flow<List<HikeLog>> = repository.observeAll()
+}
+
 interface TimeProvider {
     fun currentTimeMillis(): Long
 }
