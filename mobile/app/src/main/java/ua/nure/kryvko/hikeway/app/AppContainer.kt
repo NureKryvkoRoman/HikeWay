@@ -2,6 +2,10 @@ package ua.nure.kryvko.hikeway.app
 
 import android.content.Context
 import androidx.room.Room
+import ua.nure.kryvko.hikeway.BuildConfig
+import ua.nure.kryvko.hikeway.data.auth.DefaultAuthRepository
+import ua.nure.kryvko.hikeway.data.auth.HttpAuthApi
+import ua.nure.kryvko.hikeway.data.auth.SharedPreferencesAuthSessionStore
 import ua.nure.kryvko.hikeway.data.hikelogging.local.HikeWayDatabase
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_1_2
 import ua.nure.kryvko.hikeway.data.hikelogging.local.RoomHikeLogRepository
@@ -18,6 +22,11 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.SystemActiveTimer
 import ua.nure.kryvko.hikeway.domain.hikelogging.SystemTimeProvider
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
+import ua.nure.kryvko.hikeway.domain.auth.AuthRepository
+import ua.nure.kryvko.hikeway.domain.auth.LoginUseCase
+import ua.nure.kryvko.hikeway.domain.auth.LogoutUseCase
+import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
+import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.RouteRepository
@@ -31,18 +40,30 @@ class AppContainer(context: Context) {
         "hikeway.db",
     ).addMigrations(MIGRATION_1_2).build()
     private val locationProvider: LocationProvider = StubLocationProvider()
+    val routeTrackingProvider: RouteTrackingProvider = StubRouteTrackingProvider()
+    val timeProvider: TimeProvider = SystemTimeProvider()
+    val activeTimer: ActiveTimer = SystemActiveTimer()
+    private val authRepository: AuthRepository = DefaultAuthRepository(
+        api = HttpAuthApi(
+            backendBaseUrl = BuildConfig.BACKEND_BASE_URL,
+            keycloakBaseUrl = BuildConfig.KEYCLOAK_BASE_URL,
+        ),
+        sessionStore = SharedPreferencesAuthSessionStore(context),
+        timeProvider = timeProvider,
+    )
     private val localRouteRepository = RoomRouteRepository(database.routeDao())
     private val customRouteRepository: CustomRouteRepository = localRouteRepository
     private val routeRepository: RouteRepository = CompositeRouteRepository(
         listOf(StubRouteRepository(), localRouteRepository)
     )
     private val hikeLogRepository: HikeLogRepository = RoomHikeLogRepository(database.hikeLogDao())
-    val routeTrackingProvider: RouteTrackingProvider = StubRouteTrackingProvider()
-    val timeProvider: TimeProvider = SystemTimeProvider()
-    val activeTimer: ActiveTimer = SystemActiveTimer()
 
     val searchRoutes = SearchRoutesUseCase(routeRepository, locationProvider)
     val saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository)
     val observeCompletedHikes = ObserveCompletedHikesUseCase(hikeLogRepository)
     val saveCustomRoute = SaveCustomRouteUseCase(customRouteRepository)
+    val login = LoginUseCase(authRepository)
+    val signUp = SignUpUseCase(authRepository)
+    val restoreSession = RestoreSessionUseCase(authRepository)
+    val logout = LogoutUseCase(authRepository)
 }
