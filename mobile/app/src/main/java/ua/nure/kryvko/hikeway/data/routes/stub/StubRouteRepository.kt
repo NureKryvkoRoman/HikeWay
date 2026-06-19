@@ -7,22 +7,13 @@ import ua.nure.kryvko.hikeway.core.model.RouteGeometry
 import ua.nure.kryvko.hikeway.core.model.Terrain
 import ua.nure.kryvko.hikeway.domain.routes.RouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
-import ua.nure.kryvko.hikeway.domain.routes.distanceKm
+import ua.nure.kryvko.hikeway.domain.routes.matches
 
 class StubRouteRepository(
     private val routes: List<Route> = stubRoutes,
 ) : RouteRepository {
     override suspend fun search(criteria: RouteSearchCriteria, origin: GeoPoint): List<Route> {
-        return routes.filter { route ->
-            criteria.distanceKm?.contains(route.distanceKm) != false &&
-                criteria.estimatedTimeMinutes?.contains(route.estimatedTimeMinutes) != false &&
-                (criteria.difficulties.isEmpty() || route.difficulty in criteria.difficulties) &&
-                (criteria.terrains.isEmpty() || route.terrain in criteria.terrains) &&
-                criteria.maxProximityKm?.let { maximum ->
-                    route.geometry.points.firstOrNull()?.let { distanceKm(origin, it) <= maximum }
-                        ?: false
-                } != false
-        }
+        return routes.filter { it.matches(criteria, origin) }
     }
 }
 

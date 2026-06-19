@@ -75,6 +75,10 @@ class RouteSearchViewModel(
         refresh(emptyCriteria)
     }
 
+    fun refreshCurrentSearch() {
+        refresh(_uiState.value.appliedCriteria)
+    }
+
     fun previewRoute(route: Route) {
         _uiState.update { it.copy(previewRoute = route, saveErrorMessage = null) }
     }

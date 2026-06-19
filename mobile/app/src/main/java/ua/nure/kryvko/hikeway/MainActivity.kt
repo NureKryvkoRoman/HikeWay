@@ -26,6 +26,8 @@ import androidx.lifecycle.ViewModelProvider
 import ua.nure.kryvko.hikeway.app.AppContainer
 import ua.nure.kryvko.hikeway.feature.completedhikes.CompletedHikesScreen
 import ua.nure.kryvko.hikeway.feature.completedhikes.CompletedHikesViewModel
+import ua.nure.kryvko.hikeway.feature.routecreation.RouteCreationScreen
+import ua.nure.kryvko.hikeway.feature.routecreation.RouteCreationViewModel
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchScreen
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchViewModel
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
@@ -51,12 +53,19 @@ class MainActivity : ComponentActivity() {
                 observeCompletedHikes = container.observeCompletedHikes,
             ),
         )[CompletedHikesViewModel::class.java]
+        val routeCreationViewModel = ViewModelProvider(
+            this,
+            RouteCreationViewModel.factory(
+                saveCustomRoute = container.saveCustomRoute,
+            ),
+        )[RouteCreationViewModel::class.java]
 
         setContent {
             HikeWayTheme {
                 HikeWayApp(
                     routeSearchViewModel = routeSearchViewModel,
                     completedHikesViewModel = completedHikesViewModel,
+                    routeCreationViewModel = routeCreationViewModel,
                 )
             }
         }
@@ -67,8 +76,26 @@ class MainActivity : ComponentActivity() {
 fun HikeWayApp(
     routeSearchViewModel: RouteSearchViewModel,
     completedHikesViewModel: CompletedHikesViewModel,
+    routeCreationViewModel: RouteCreationViewModel,
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
+    var isCreatingRoute by rememberSaveable { mutableStateOf(false) }
+
+    if (isCreatingRoute) {
+        RouteCreationScreen(
+            viewModel = routeCreationViewModel,
+            onCancel = {
+                routeCreationViewModel.reset()
+                isCreatingRoute = false
+            },
+            onSaved = {
+                isCreatingRoute = false
+                currentDestination = AppDestination.HOME
+                routeSearchViewModel.refreshCurrentSearch()
+            },
+        )
+        return
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -83,7 +110,10 @@ fun HikeWayApp(
         }
     ) {
         when (currentDestination) {
-            AppDestination.HOME -> RouteSearchScreen(routeSearchViewModel)
+            AppDestination.HOME -> RouteSearchScreen(
+                viewModel = routeSearchViewModel,
+                onCreateRoute = { isCreatingRoute = true },
+            )
             AppDestination.COMPLETED_HIKES -> CompletedHikesScreen(completedHikesViewModel)
             else -> PlaceholderScreen(currentDestination.label)
         }

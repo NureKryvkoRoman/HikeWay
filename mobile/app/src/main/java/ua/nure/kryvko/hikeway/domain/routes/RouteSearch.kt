@@ -23,6 +23,10 @@ interface RouteRepository {
     suspend fun search(criteria: RouteSearchCriteria, origin: GeoPoint): List<Route>
 }
 
+interface CustomRouteRepository {
+    suspend fun save(route: Route): Long
+}
+
 class SearchRoutesUseCase(
     private val repository: RouteRepository,
     private val locationProvider: LocationProvider,
@@ -30,6 +34,22 @@ class SearchRoutesUseCase(
     suspend operator fun invoke(criteria: RouteSearchCriteria): List<Route> {
         return repository.search(criteria, locationProvider.getCurrentLocation())
     }
+}
+
+class SaveCustomRouteUseCase(
+    private val repository: CustomRouteRepository,
+) {
+    suspend operator fun invoke(route: Route): Long = repository.save(route)
+}
+
+fun Route.matches(criteria: RouteSearchCriteria, origin: GeoPoint): Boolean {
+    return criteria.distanceKm?.contains(distanceKm) != false &&
+        criteria.estimatedTimeMinutes?.contains(estimatedTimeMinutes) != false &&
+        (criteria.difficulties.isEmpty() || difficulty in criteria.difficulties) &&
+        (criteria.terrains.isEmpty() || terrain in criteria.terrains) &&
+        criteria.maxProximityKm?.let { maximum ->
+            geometry.points.firstOrNull()?.let { distanceKm(origin, it) <= maximum } ?: false
+        } != false
 }
 
 fun distanceKm(from: GeoPoint, to: GeoPoint): Double {

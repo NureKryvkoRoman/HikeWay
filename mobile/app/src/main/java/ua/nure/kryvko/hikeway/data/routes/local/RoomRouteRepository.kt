@@ -1,0 +1,67 @@
+package ua.nure.kryvko.hikeway.data.routes.local
+
+import ua.nure.kryvko.hikeway.core.model.Difficulty
+import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.Route
+import ua.nure.kryvko.hikeway.core.model.RouteGeometry
+import ua.nure.kryvko.hikeway.core.model.Terrain
+import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
+import ua.nure.kryvko.hikeway.domain.routes.RouteRepository
+import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
+import ua.nure.kryvko.hikeway.domain.routes.matches
+
+class RoomRouteRepository(
+    private val dao: RouteDao,
+) : RouteRepository, CustomRouteRepository {
+    override suspend fun search(criteria: RouteSearchCriteria, origin: GeoPoint): List<Route> {
+        return dao.getAll()
+            .map { it.toDomain() }
+            .filter { it.matches(criteria, origin) }
+    }
+
+    override suspend fun save(route: Route): Long {
+        return dao.insert(route.toEntity())
+    }
+}
+
+fun Route.toEntity() = RouteEntity(
+    id = if (id < 0) 0 else id,
+    name = name,
+    description = description,
+    distanceKm = distanceKm,
+    estimatedTimeMinutes = estimatedTimeMinutes,
+    difficulty = difficulty.name,
+    elevationGainMeters = elevationGainMeters,
+    terrain = terrain.name,
+    geometryGeoJson = geometry.points.toGeoJsonLineString(),
+)
+
+fun RouteEntity.toDomain() = Route(
+    id = id,
+    name = name,
+    description = description,
+    distanceKm = distanceKm,
+    estimatedTimeMinutes = estimatedTimeMinutes,
+    difficulty = Difficulty.valueOf(difficulty),
+    elevationGainMeters = elevationGainMeters,
+    terrain = Terrain.valueOf(terrain),
+    geometry = RouteGeometry(geometryGeoJson.toGeoPoints()),
+)
+
+fun List<GeoPoint>.toGeoJsonLineString(): String {
+    val coordinates = joinToString(separator = ",") {
+        "[${it.longitude},${it.latitude}]"
+    }
+    return """{"type":"LineString","coordinates":[$coordinates]}"""
+}
+
+private fun String.toGeoPoints(): List<GeoPoint> {
+    return coordinateRegex.findAll(this).map { match ->
+        GeoPoint(
+            longitude = match.groupValues[1].toDouble(),
+            latitude = match.groupValues[2].toDouble(),
+        )
+    }.toList()
+}
+
+private val coordinateRegex = Regex("""\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*]""")

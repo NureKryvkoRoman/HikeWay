@@ -65,7 +65,10 @@ import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
 
 @Composable
-fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
+fun RouteSearchScreen(
+    viewModel: RouteSearchViewModel,
+    onCreateRoute: () -> Unit = {},
+) {
     val state by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
     val pickingSession = state.pickingSession
@@ -108,6 +111,7 @@ fun RouteSearchScreen(viewModel: RouteSearchViewModel) {
                 state = state,
                 onRouteClick = viewModel::previewRoute,
                 onFilterClick = { showFilters = true },
+                onCreateRoute = onCreateRoute,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
@@ -247,6 +251,7 @@ private fun ResultsPanel(
     state: RouteSearchUiState,
     onRouteClick: (Route) -> Unit,
     onFilterClick: () -> Unit,
+    onCreateRoute: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -262,8 +267,13 @@ private fun ResultsPanel(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("${state.routes.size} routes found", style = MaterialTheme.typography.titleMedium)
-                Button(onClick = onFilterClick) {
-                    Text("Filters")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onCreateRoute) {
+                        Text("Create route")
+                    }
+                    Button(onClick = onFilterClick) {
+                        Text("Filters")
+                    }
                 }
             }
             when {
