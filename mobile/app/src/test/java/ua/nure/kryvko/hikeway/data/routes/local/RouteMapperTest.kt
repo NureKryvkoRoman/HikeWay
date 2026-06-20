@@ -11,7 +11,7 @@ import ua.nure.kryvko.hikeway.core.model.Terrain
 class RouteMapperTest {
     @Test
     fun serializesGeometryAsGeoJsonLineStringWithLongitudeLatitudeOrder() {
-        val entity = route().toEntity()
+        val entity = route().toEntity(ownerUserId = "user-123")
 
         assertEquals(
             """{"type":"LineString","coordinates":[[24.0316,49.8429],[24.0394,49.8461]]}""",
@@ -23,7 +23,12 @@ class RouteMapperTest {
     fun roundTripsRouteGeometry() {
         val route = route()
 
-        assertEquals(route.geometry.points, route.toEntity().toDomain().geometry.points)
+        assertEquals(route.geometry.points, route.toEntity(ownerUserId = "user-123").toDomain().geometry.points)
+    }
+
+    @Test
+    fun writesOwnerUserId() {
+        assertEquals("user-123", route().toEntity(ownerUserId = "user-123").ownerUserId)
     }
 
     private fun route() = Route(

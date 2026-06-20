@@ -1,10 +1,15 @@
 package ua.nure.kryvko.hikeway.domain.auth
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 data class AuthSession(
     val accessToken: String,
     val refreshToken: String?,
     val expiresAtEpochMillis: Long,
     val username: String,
+    val userId: String,
 )
 
 data class SignUpRequest(
@@ -21,6 +26,23 @@ interface AuthRepository {
     suspend fun signUp(request: SignUpRequest)
     suspend fun refreshSession(): AuthSession?
     suspend fun logout()
+}
+
+interface CurrentUserProvider {
+    val currentUserId: StateFlow<String?>
+
+    fun requireCurrentUserId(): String {
+        return currentUserId.value ?: error("Authenticated user is required.")
+    }
+}
+
+class MutableCurrentUserProvider : CurrentUserProvider {
+    private val _currentUserId = MutableStateFlow<String?>(null)
+    override val currentUserId: StateFlow<String?> = _currentUserId.asStateFlow()
+
+    fun setCurrentUserId(userId: String?) {
+        _currentUserId.value = userId
+    }
 }
 
 class LoginUseCase(

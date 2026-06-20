@@ -13,11 +13,13 @@ import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.RouteGeometry
 import ua.nure.kryvko.hikeway.core.model.Terrain
 import ua.nure.kryvko.hikeway.data.hikelogging.local.HikeWayDatabase
+import ua.nure.kryvko.hikeway.domain.auth.MutableCurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 
 class RouteDaoTest {
     private lateinit var database: HikeWayDatabase
     private lateinit var repository: RoomRouteRepository
+    private lateinit var currentUserProvider: MutableCurrentUserProvider
 
     @Before
     fun setUp() {
@@ -25,7 +27,9 @@ class RouteDaoTest {
             InstrumentationRegistry.getInstrumentation().targetContext,
             HikeWayDatabase::class.java,
         ).allowMainThreadQueries().build()
-        repository = RoomRouteRepository(database.routeDao())
+        currentUserProvider = MutableCurrentUserProvider()
+        currentUserProvider.setCurrentUserId("user-1")
+        repository = RoomRouteRepository(database.routeDao(), currentUserProvider)
     }
 
     @After
@@ -47,9 +51,29 @@ class RouteDaoTest {
         assertEquals(2, routes.single().geometry.points.size)
     }
 
-    private fun route() = Route(
+    @Test
+    fun searchesOnlyCurrentUsersCustomRoutes() = runBlocking {
+        repository.save(route(name = "User one route"))
+        currentUserProvider.setCurrentUserId("user-2")
+        repository.save(route(name = "User two route"))
+
+        val userTwoRoutes = repository.search(
+            criteria = RouteSearchCriteria(),
+            origin = GeoPoint(longitude = 24.0316, latitude = 49.8429),
+        )
+        currentUserProvider.setCurrentUserId("user-1")
+        val userOneRoutes = repository.search(
+            criteria = RouteSearchCriteria(),
+            origin = GeoPoint(longitude = 24.0316, latitude = 49.8429),
+        )
+
+        assertEquals("User two route", userTwoRoutes.single().name)
+        assertEquals("User one route", userOneRoutes.single().name)
+    }
+
+    private fun route(name: String = "Local route") = Route(
         id = 0,
-        name = "Local route",
+        name = name,
         description = "Created locally",
         distanceKm = 0.5,
         estimatedTimeMinutes = 8,

@@ -8,6 +8,7 @@ import ua.nure.kryvko.hikeway.data.auth.HttpAuthApi
 import ua.nure.kryvko.hikeway.data.auth.SharedPreferencesAuthSessionStore
 import ua.nure.kryvko.hikeway.data.hikelogging.local.HikeWayDatabase
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_1_2
+import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_2_3
 import ua.nure.kryvko.hikeway.data.hikelogging.local.RoomHikeLogRepository
 import ua.nure.kryvko.hikeway.core.location.LocationProvider
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
@@ -25,6 +26,7 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 import ua.nure.kryvko.hikeway.domain.auth.AuthRepository
 import ua.nure.kryvko.hikeway.domain.auth.LoginUseCase
 import ua.nure.kryvko.hikeway.domain.auth.LogoutUseCase
+import ua.nure.kryvko.hikeway.domain.auth.MutableCurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
@@ -38,11 +40,12 @@ class AppContainer(context: Context) {
         context.applicationContext,
         HikeWayDatabase::class.java,
         "hikeway.db",
-    ).addMigrations(MIGRATION_1_2).build()
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     private val locationProvider: LocationProvider = StubLocationProvider()
     val routeTrackingProvider: RouteTrackingProvider = StubRouteTrackingProvider()
     val timeProvider: TimeProvider = SystemTimeProvider()
     val activeTimer: ActiveTimer = SystemActiveTimer()
+    private val currentUserProvider = MutableCurrentUserProvider()
     private val authRepository: AuthRepository = DefaultAuthRepository(
         api = HttpAuthApi(
             backendBaseUrl = BuildConfig.BACKEND_BASE_URL,
@@ -50,13 +53,17 @@ class AppContainer(context: Context) {
         ),
         sessionStore = SharedPreferencesAuthSessionStore(context),
         timeProvider = timeProvider,
+        currentUserProvider = currentUserProvider,
     )
-    private val localRouteRepository = RoomRouteRepository(database.routeDao())
+    private val localRouteRepository = RoomRouteRepository(database.routeDao(), currentUserProvider)
     private val customRouteRepository: CustomRouteRepository = localRouteRepository
     private val routeRepository: RouteRepository = CompositeRouteRepository(
         listOf(StubRouteRepository(), localRouteRepository)
     )
-    private val hikeLogRepository: HikeLogRepository = RoomHikeLogRepository(database.hikeLogDao())
+    private val hikeLogRepository: HikeLogRepository = RoomHikeLogRepository(
+        database.hikeLogDao(),
+        currentUserProvider,
+    )
 
     val searchRoutes = SearchRoutesUseCase(routeRepository, locationProvider)
     val saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository)

@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class HikeLogEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val ownerUserId: String,
     val routeId: Long,
     val routeName: String,
     val startedAtEpochMillis: Long,

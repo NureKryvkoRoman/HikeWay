@@ -18,11 +18,16 @@ class SharedPreferencesAuthSessionStore(context: Context) : AuthSessionStore {
     override fun get(): AuthSession? {
         val accessToken = preferences.getString(KEY_ACCESS_TOKEN, null) ?: return null
         val username = preferences.getString(KEY_USERNAME, null) ?: return null
+        val userId = preferences.getString(KEY_USER_ID, null) ?: run {
+            clear()
+            return null
+        }
         return AuthSession(
             accessToken = accessToken,
             refreshToken = preferences.getString(KEY_REFRESH_TOKEN, null),
             expiresAtEpochMillis = preferences.getLong(KEY_EXPIRES_AT, 0L),
             username = username,
+            userId = userId,
         )
     }
 
@@ -32,6 +37,7 @@ class SharedPreferencesAuthSessionStore(context: Context) : AuthSessionStore {
             .putString(KEY_REFRESH_TOKEN, session.refreshToken)
             .putLong(KEY_EXPIRES_AT, session.expiresAtEpochMillis)
             .putString(KEY_USERNAME, session.username)
+            .putString(KEY_USER_ID, session.userId)
             .apply()
     }
 
@@ -44,5 +50,6 @@ class SharedPreferencesAuthSessionStore(context: Context) : AuthSessionStore {
         const val KEY_REFRESH_TOKEN = "refresh_token"
         const val KEY_EXPIRES_AT = "expires_at_epoch_millis"
         const val KEY_USERNAME = "username"
+        const val KEY_USER_ID = "user_id"
     }
 }

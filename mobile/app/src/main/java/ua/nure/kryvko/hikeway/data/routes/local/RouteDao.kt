@@ -9,6 +9,6 @@ interface RouteDao {
     @Insert
     suspend fun insert(route: RouteEntity): Long
 
-    @Query("SELECT * FROM routes ORDER BY id DESC")
-    suspend fun getAll(): List<RouteEntity>
+    @Query("SELECT * FROM routes WHERE ownerUserId = :ownerUserId ORDER BY id DESC")
+    suspend fun getAll(ownerUserId: String): List<RouteEntity>
 }

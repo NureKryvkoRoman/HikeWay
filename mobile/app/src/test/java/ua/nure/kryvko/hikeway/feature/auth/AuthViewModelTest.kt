@@ -168,4 +168,5 @@ private fun session(username: String) = AuthSession(
     refreshToken = "refresh",
     expiresAtEpochMillis = Long.MAX_VALUE,
     username = username,
+    userId = "user-$username",
 )

@@ -13,7 +13,7 @@ class HikeLogMapperTest {
                 GeoPoint(longitude = 24.0316, latitude = 49.8429),
                 GeoPoint(longitude = 24.0394, latitude = 49.8461),
             )
-        ).toEntity()
+        ).toEntity(ownerUserId = "user-123")
 
         assertEquals(
             """{"type":"LineString","coordinates":[[24.0316,49.8429],[24.0394,49.8461]]}""",
@@ -30,7 +30,12 @@ class HikeLogMapperTest {
             )
         )
 
-        assertEquals(log.path, log.toEntity().toDomain().path)
+        assertEquals(log.path, log.toEntity(ownerUserId = "user-123").toDomain().path)
+    }
+
+    @Test
+    fun writesOwnerUserId() {
+        assertEquals("user-123", hikeLog(emptyList()).toEntity(ownerUserId = "user-123").ownerUserId)
     }
 
     private fun hikeLog(path: List<GeoPoint>) = HikeLog(

@@ -7,7 +7,7 @@ import ua.nure.kryvko.hikeway.data.routes.local.RouteEntity
 
 @Database(
     entities = [HikeLogEntity::class, RouteEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class HikeWayDatabase : RoomDatabase() {

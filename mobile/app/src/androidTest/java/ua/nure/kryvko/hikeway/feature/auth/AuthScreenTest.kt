@@ -77,6 +77,7 @@ private class FakeAuthRepository : AuthRepository {
             refreshToken = "refresh",
             expiresAtEpochMillis = Long.MAX_VALUE,
             username = username,
+            userId = "user-$username",
         )
     }
 

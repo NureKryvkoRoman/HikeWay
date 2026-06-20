@@ -10,9 +10,9 @@ interface HikeLogDao {
     @Insert
     suspend fun insert(log: HikeLogEntity): Long
 
-    @Query("SELECT * FROM hike_logs ORDER BY finishedAtEpochMillis DESC")
-    fun observeAll(): Flow<List<HikeLogEntity>>
+    @Query("SELECT * FROM hike_logs WHERE ownerUserId = :ownerUserId ORDER BY finishedAtEpochMillis DESC")
+    fun observeAll(ownerUserId: String): Flow<List<HikeLogEntity>>
 
-    @Query("SELECT * FROM hike_logs ORDER BY finishedAtEpochMillis DESC")
-    suspend fun getAll(): List<HikeLogEntity>
+    @Query("SELECT * FROM hike_logs WHERE ownerUserId = :ownerUserId ORDER BY finishedAtEpochMillis DESC")
+    suspend fun getAll(ownerUserId: String): List<HikeLogEntity>
 }
