@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.nure.kryvko.hikeway.core.model.Difficulty
@@ -198,28 +199,38 @@ class RouteSearchViewModel(
     private fun startTracking(route: Route, startIndex: Int) {
         trackingJob?.cancel()
         trackingJob = viewModelScope.launch {
-            routeTrackingProvider.positions(route, startIndex).collect { progress ->
-                _uiState.update { state ->
-                    val session = state.pickingSession
-                    if (session?.route?.id != route.id || session.status != RoutePickingStatus.ACTIVE) {
-                        state
-                    } else {
+            routeTrackingProvider.positions(route, startIndex)
+                .catch {
+                    _uiState.update { state ->
                         state.copy(
-                            pickingSession = session.copy(
-                                userPosition = progress.position,
-                                bearingDegrees = progress.bearingDegrees,
-                                pointIndex = progress.pointIndex,
-                                walkedPath = session.walkedPath.appendDistinct(progress.position),
-                                walkedDistanceKm = session.walkedDistanceKm +
-                                    session.walkedPath.lastOrNull()
-                                        ?.takeIf { it != progress.position }
-                                        ?.let { distanceKm(it, progress.position) }
-                                        .orZero(),
-                            )
+                            pickingSession = state.pickingSession?.copy(status = RoutePickingStatus.PAUSED),
+                            saveErrorMessage = it.message ?: "Could not track current location.",
                         )
                     }
                 }
-            }
+                .collect { progress ->
+                    _uiState.update { state ->
+                        val session = state.pickingSession
+                        if (session?.route?.id != route.id || session.status != RoutePickingStatus.ACTIVE) {
+                            state
+                        } else {
+                            state.copy(
+                                pickingSession = session.copy(
+                                    userPosition = progress.position,
+                                    bearingDegrees = progress.bearingDegrees,
+                                    pointIndex = progress.pointIndex,
+                                    walkedPath = session.walkedPath.appendDistinct(progress.position),
+                                    walkedDistanceKm = session.walkedDistanceKm +
+                                        session.walkedPath.lastOrNull()
+                                            ?.takeIf { it != progress.position }
+                                            ?.let { distanceKm(it, progress.position) }
+                                            .orZero(),
+                                ),
+                                saveErrorMessage = null,
+                            )
+                        }
+                    }
+                }
         }
     }
 

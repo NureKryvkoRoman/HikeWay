@@ -12,7 +12,7 @@ import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_2_3
 import ua.nure.kryvko.hikeway.data.hikelogging.local.RoomHikeLogRepository
 import ua.nure.kryvko.hikeway.core.location.LocationProvider
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
-import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
+import ua.nure.kryvko.hikeway.data.routepicking.createRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.CompositeRouteRepository
 import ua.nure.kryvko.hikeway.data.routes.local.RoomRouteRepository
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
@@ -42,7 +42,10 @@ class AppContainer(context: Context) {
         "hikeway.db",
     ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     private val locationProvider: LocationProvider = StubLocationProvider()
-    val routeTrackingProvider: RouteTrackingProvider = StubRouteTrackingProvider()
+    val routeTrackingProvider: RouteTrackingProvider = createRouteTrackingProvider(
+        context = context,
+        useSimulatedGps = BuildConfig.USE_SIMULATED_GPS,
+    )
     val timeProvider: TimeProvider = SystemTimeProvider()
     val activeTimer: ActiveTimer = SystemActiveTimer()
     private val currentUserProvider = MutableCurrentUserProvider()

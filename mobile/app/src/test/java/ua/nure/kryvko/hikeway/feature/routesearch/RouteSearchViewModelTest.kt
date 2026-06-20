@@ -27,6 +27,8 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
+import ua.nure.kryvko.hikeway.domain.routepicking.RouteProgress
+import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 import kotlinx.coroutines.delay
@@ -250,13 +252,38 @@ class RouteSearchViewModelTest {
         assertNotNull(viewModel.uiState.value.saveErrorMessage)
     }
 
-    private fun viewModel(locationProvider: LocationProvider): RouteSearchViewModel {
+    @Test
+    fun trackingFailurePausesSessionAndShowsError() = runTest(dispatcher) {
+        val viewModel = viewModel(
+            locationProvider = StubLocationProvider(),
+            routeTrackingProvider = object : RouteTrackingProvider {
+                override fun positions(route: ua.nure.kryvko.hikeway.core.model.Route, startIndex: Int): Flow<RouteProgress> {
+                    return flow { error("GPS unavailable") }
+                }
+            },
+        )
+        advanceUntilIdle()
+
+        viewModel.previewRoute(viewModel.uiState.value.routes.first())
+        viewModel.startPreviewedRoute()
+        runCurrent()
+
+        assertEquals(RoutePickingStatus.PAUSED, viewModel.uiState.value.pickingSession?.status)
+        assertEquals("GPS unavailable", viewModel.uiState.value.saveErrorMessage)
+        viewModel.finishRoute()
+        advanceUntilIdle()
+    }
+
+    private fun viewModel(
+        locationProvider: LocationProvider,
+        routeTrackingProvider: RouteTrackingProvider = StubRouteTrackingProvider(stepDelayMillis = 1_000L),
+    ): RouteSearchViewModel {
         return RouteSearchViewModel(
             searchRoutes = SearchRoutesUseCase(
                 repository = StubRouteRepository(),
                 locationProvider = locationProvider,
             ),
-            routeTrackingProvider = StubRouteTrackingProvider(stepDelayMillis = 1_000L),
+            routeTrackingProvider = routeTrackingProvider,
             saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository),
             timeProvider = timeProvider,
             activeTimer = TestActiveTimer(),

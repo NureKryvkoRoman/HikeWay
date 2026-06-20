@@ -1,9 +1,13 @@
 package ua.nure.kryvko.hikeway
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +50,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestLocationPermissionForProduction()
         val container = AppContainer(applicationContext)
         val authViewModel = ViewModelProvider(
             this,
@@ -89,6 +94,32 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun requestLocationPermissionForProduction() {
+        if (BuildConfig.USE_SIMULATED_GPS) return
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!hasFineLocation && !hasCoarseLocation) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+                LOCATION_PERMISSION_REQUEST_CODE,
+            )
+        }
+    }
+
+    private companion object {
+        const val LOCATION_PERMISSION_REQUEST_CODE = 1001
     }
 }
 

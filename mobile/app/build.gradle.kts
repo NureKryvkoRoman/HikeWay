@@ -26,6 +26,18 @@ android {
         buildConfigField("String", "KEYCLOAK_BASE_URL", "\"http://10.0.2.2:8081\"")
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("development") {
+            dimension = "environment"
+            buildConfigField("Boolean", "USE_SIMULATED_GPS", "true")
+        }
+        create("production") {
+            dimension = "environment"
+            buildConfigField("Boolean", "USE_SIMULATED_GPS", "false")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
