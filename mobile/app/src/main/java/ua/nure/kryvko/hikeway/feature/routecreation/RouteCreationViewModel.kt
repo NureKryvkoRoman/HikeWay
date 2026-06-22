@@ -11,9 +11,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.RouteGeometry
 import ua.nure.kryvko.hikeway.core.model.Terrain
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routes.SaveCustomRouteUseCase
 import ua.nure.kryvko.hikeway.domain.routes.distanceKm
 
@@ -37,6 +40,8 @@ data class RouteCreationUiState(
     val saveErrorMessage: String? = null,
     val isSaving: Boolean = false,
     val didSave: Boolean = false,
+    val pointsOfInterest: List<PointOfInterest> = emptyList(),
+    val selectedPoi: PointOfInterest? = null,
 ) {
     val distanceKm: Double = points.totalDistanceKm()
     val estimatedTimeMinutes: Int = estimateTimeMinutes(distanceKm)
@@ -44,9 +49,15 @@ data class RouteCreationUiState(
 
 class RouteCreationViewModel(
     private val saveCustomRoute: SaveCustomRouteUseCase,
+    private val getPointsOfInterest: GetPointsOfInterestUseCase,
+    private val ratePointOfInterest: RatePointOfInterestUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RouteCreationUiState())
     val uiState: StateFlow<RouteCreationUiState> = _uiState.asStateFlow()
+
+    init {
+        loadPointsOfInterest()
+    }
 
     fun updateCrosshair(point: GeoPoint) {
         _uiState.update { it.copy(crosshairPoint = point) }
@@ -58,6 +69,41 @@ class RouteCreationViewModel(
                 points = it.points + it.crosshairPoint,
                 validationMessage = null,
             )
+        }
+    }
+
+    fun selectPoi(poiId: Long) {
+        _uiState.update { state ->
+            state.copy(selectedPoi = state.pointsOfInterest.firstOrNull { it.id == poiId })
+        }
+    }
+
+    fun dismissPoi() {
+        _uiState.update { it.copy(selectedPoi = null) }
+    }
+
+    fun addSelectedPoiToRoute() {
+        _uiState.update { state ->
+            val poi = state.selectedPoi ?: return@update state
+            state.copy(
+                points = state.points + poi.location,
+                selectedPoi = null,
+                validationMessage = null,
+            )
+        }
+    }
+
+    fun ratePoi(rating: Int) {
+        val poiId = _uiState.value.selectedPoi?.id ?: return
+        if (rating !in 1..5) return
+        _uiState.update { it.withPoiRating(poiId, rating) }
+        viewModelScope.launch {
+            runCatching { ratePointOfInterest(poiId, rating) }
+                .onFailure {
+                    _uiState.update { state ->
+                        state.copy(saveErrorMessage = state.saveErrorMessage ?: "Could not submit rating.")
+                    }
+                }
         }
     }
 
@@ -140,18 +186,56 @@ class RouteCreationViewModel(
 
     fun reset() {
         _uiState.value = RouteCreationUiState()
+        loadPointsOfInterest()
     }
 
     companion object {
-        fun factory(saveCustomRoute: SaveCustomRouteUseCase): ViewModelProvider.Factory {
+        fun factory(
+            saveCustomRoute: SaveCustomRouteUseCase,
+            getPointsOfInterest: GetPointsOfInterestUseCase,
+            ratePointOfInterest: RatePointOfInterestUseCase,
+        ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return RouteCreationViewModel(saveCustomRoute) as T
+                    return RouteCreationViewModel(
+                        saveCustomRoute = saveCustomRoute,
+                        getPointsOfInterest = getPointsOfInterest,
+                        ratePointOfInterest = ratePointOfInterest,
+                    ) as T
                 }
             }
         }
     }
+
+    private fun loadPointsOfInterest() {
+        viewModelScope.launch {
+            runCatching { getPointsOfInterest() }
+                .onSuccess { pois ->
+                    _uiState.update { it.copy(pointsOfInterest = pois) }
+                }
+                .onFailure {
+                    _uiState.update { state ->
+                        state.copy(saveErrorMessage = state.saveErrorMessage ?: "Points of interest are unavailable.")
+                    }
+                }
+        }
+    }
+}
+
+private fun RouteCreationUiState.withPoiRating(
+    poiId: Long,
+    rating: Int,
+): RouteCreationUiState {
+    val updatedPois = pointsOfInterest.map { poi ->
+        if (poi.id == poiId) poi.copy(userRating = rating) else poi
+    }
+    return copy(
+        pointsOfInterest = updatedPois,
+        selectedPoi = selectedPoi?.let { selected ->
+            if (selected.id == poiId) selected.copy(userRating = rating) else selected
+        },
+    )
 }
 
 fun List<GeoPoint>.totalDistanceKm(): Double {

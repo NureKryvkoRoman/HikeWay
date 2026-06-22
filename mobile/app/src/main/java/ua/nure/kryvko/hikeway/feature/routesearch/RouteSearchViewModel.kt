@@ -13,12 +13,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.Terrain
 import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingSession
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
@@ -39,6 +42,8 @@ data class RouteSearchUiState(
     val saveErrorMessage: String? = null,
     val previewRoute: Route? = null,
     val pickingSession: RoutePickingSession? = null,
+    val pointsOfInterest: List<PointOfInterest> = emptyList(),
+    val selectedPoi: PointOfInterest? = null,
 )
 
 class RouteSearchViewModel(
@@ -48,6 +53,8 @@ class RouteSearchViewModel(
     private val saveCompletedHike: SaveCompletedHikeUseCase,
     private val timeProvider: TimeProvider,
     private val activeTimer: ActiveTimer,
+    private val getPointsOfInterest: GetPointsOfInterestUseCase,
+    private val ratePointOfInterest: RatePointOfInterestUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RouteSearchUiState())
     val uiState: StateFlow<RouteSearchUiState> = _uiState.asStateFlow()
@@ -57,6 +64,7 @@ class RouteSearchViewModel(
     init {
         centerOnCurrentLocation()
         refresh(RouteSearchCriteria())
+        loadPointsOfInterest()
     }
 
     fun updateDraft(criteria: RouteSearchCriteria) {
@@ -113,6 +121,28 @@ class RouteSearchViewModel(
 
     fun dismissRoutePreview() {
         _uiState.update { it.copy(previewRoute = null) }
+    }
+
+    fun selectPoi(poiId: Long) {
+        _uiState.update { state ->
+            state.copy(selectedPoi = state.pointsOfInterest.firstOrNull { it.id == poiId })
+        }
+    }
+
+    fun dismissPoi() {
+        _uiState.update { it.copy(selectedPoi = null) }
+    }
+
+    fun ratePoi(rating: Int) {
+        val poiId = _uiState.value.selectedPoi?.id ?: return
+        if (rating !in 1..5) return
+        _uiState.update { it.withPoiRating(poiId, rating) }
+        viewModelScope.launch {
+            runCatching { ratePointOfInterest(poiId, rating) }
+                .onFailure { error ->
+                    Log.w("RouteSearchViewModel", "Could not submit PoI rating", error)
+                }
+        }
     }
 
     fun startPreviewedRoute() {
@@ -223,6 +253,20 @@ class RouteSearchViewModel(
         }
     }
 
+    private fun loadPointsOfInterest() {
+        viewModelScope.launch {
+            runCatching { getPointsOfInterest() }
+                .onSuccess { pois ->
+                    _uiState.update { it.copy(pointsOfInterest = pois) }
+                }
+                .onFailure {
+                    _uiState.update { state ->
+                        state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                    }
+                }
+        }
+    }
+
     private fun startTracking(route: Route, startIndex: Int) {
         trackingJob?.cancel()
         trackingJob = viewModelScope.launch {
@@ -289,6 +333,8 @@ class RouteSearchViewModel(
             saveCompletedHike: SaveCompletedHikeUseCase,
             timeProvider: TimeProvider,
             activeTimer: ActiveTimer,
+            getPointsOfInterest: GetPointsOfInterestUseCase,
+            ratePointOfInterest: RatePointOfInterestUseCase,
         ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
@@ -300,11 +346,28 @@ class RouteSearchViewModel(
                         saveCompletedHike = saveCompletedHike,
                         timeProvider = timeProvider,
                         activeTimer = activeTimer,
+                        getPointsOfInterest = getPointsOfInterest,
+                        ratePointOfInterest = ratePointOfInterest,
                     ) as T
                 }
             }
         }
     }
+}
+
+private fun RouteSearchUiState.withPoiRating(
+    poiId: Long,
+    rating: Int,
+): RouteSearchUiState {
+    val updatedPois = pointsOfInterest.map { poi ->
+        if (poi.id == poiId) poi.copy(userRating = rating) else poi
+    }
+    return copy(
+        pointsOfInterest = updatedPois,
+        selectedPoi = selectedPoi?.let { selected ->
+            if (selected.id == poiId) selected.copy(userRating = rating) else selected
+        },
+    )
 }
 
 private fun <T> Set<T>.toggle(value: T): Set<T> {

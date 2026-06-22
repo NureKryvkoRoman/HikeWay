@@ -72,6 +72,8 @@ class MainActivity : ComponentActivity() {
                 saveCompletedHike = container.saveCompletedHike,
                 timeProvider = container.timeProvider,
                 activeTimer = container.activeTimer,
+                getPointsOfInterest = container.getPointsOfInterest,
+                ratePointOfInterest = container.ratePointOfInterest,
             ),
         )[RouteSearchViewModel::class.java]
         val completedHikesViewModel = ViewModelProvider(
@@ -84,6 +86,8 @@ class MainActivity : ComponentActivity() {
             this,
             RouteCreationViewModel.factory(
                 saveCustomRoute = container.saveCustomRoute,
+                getPointsOfInterest = container.getPointsOfInterest,
+                ratePointOfInterest = container.ratePointOfInterest,
             ),
         )[RouteCreationViewModel::class.java]
 

@@ -19,6 +19,7 @@ import ua.nure.kryvko.hikeway.core.location.LocationProvider
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
@@ -26,6 +27,9 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteProgress
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
@@ -42,12 +46,14 @@ class RouteSearchViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var timeProvider: FakeTimeProvider
     private lateinit var hikeLogRepository: FakeHikeLogRepository
+    private lateinit var pointOfInterestRepository: FakePointOfInterestRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         timeProvider = FakeTimeProvider()
         hikeLogRepository = FakeHikeLogRepository()
+        pointOfInterestRepository = FakePointOfInterestRepository()
     }
 
     @After
@@ -123,6 +129,29 @@ class RouteSearchViewModelTest {
 
         assertEquals(route.id, viewModel.uiState.value.previewRoute?.id)
         assertEquals(null, viewModel.uiState.value.pickingSession)
+    }
+
+    @Test
+    fun loadsAndSelectsPointOfInterest() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.selectPoi(101)
+
+        assertEquals("Forest spring", viewModel.uiState.value.selectedPoi?.name)
+    }
+
+    @Test
+    fun ratePointOfInterestUpdatesUiAndSubmitsRating() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        viewModel.selectPoi(101)
+        viewModel.ratePoi(5)
+        advanceUntilIdle()
+
+        assertEquals(5, viewModel.uiState.value.selectedPoi?.userRating)
+        assertEquals(101L to 5, pointOfInterestRepository.submittedRatings.single())
     }
 
     @Test
@@ -314,6 +343,8 @@ class RouteSearchViewModelTest {
             saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository),
             timeProvider = timeProvider,
             activeTimer = TestActiveTimer(),
+            getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository),
+            ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository),
         )
     }
 }
@@ -350,4 +381,25 @@ private class FakeHikeLogRepository : HikeLogRepository {
     }
 
     override fun observeAll(): Flow<List<HikeLog>> = emptyFlow()
+}
+
+private class FakePointOfInterestRepository : PointOfInterestRepository {
+    val submittedRatings = mutableListOf<Pair<Long, Int>>()
+
+    override suspend fun getPointsOfInterest(): List<PointOfInterest> {
+        return listOf(
+            PointOfInterest(
+                id = 101,
+                name = "Forest spring",
+                description = "A shaded water stop.",
+                location = GeoPoint(longitude = 24.1, latitude = 49.8),
+                photoResIds = emptyList(),
+                averageRating = 4.2,
+            )
+        )
+    }
+
+    override suspend fun submitRating(poiId: Long, rating: Int) {
+        submittedRatings += poiId to rating
+    }
 }

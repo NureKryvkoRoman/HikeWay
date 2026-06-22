@@ -14,8 +14,12 @@ import org.junit.Before
 import org.junit.Test
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.Terrain
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.SaveCustomRouteUseCase
 
@@ -23,11 +27,13 @@ import ua.nure.kryvko.hikeway.domain.routes.SaveCustomRouteUseCase
 class RouteCreationViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var repository: FakeCustomRouteRepository
+    private lateinit var pointOfInterestRepository: FakePointOfInterestRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         repository = FakeCustomRouteRepository()
+        pointOfInterestRepository = FakePointOfInterestRepository()
     }
 
     @After
@@ -100,6 +106,34 @@ class RouteCreationViewModelTest {
         assertEquals(true, viewModel.uiState.value.didSave)
     }
 
+    @Test
+    fun addSelectedPoiAppendsPoiLocationAsRoutePoint() = runTest(dispatcher) {
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.selectPoi(201)
+        viewModel.addSelectedPoiToRoute()
+
+        assertEquals(
+            listOf(GeoPoint(longitude = 24.2, latitude = 49.9)),
+            viewModel.uiState.value.points,
+        )
+        assertEquals(null, viewModel.uiState.value.selectedPoi)
+    }
+
+    @Test
+    fun ratePointOfInterestUpdatesUiAndSubmitsRating() = runTest(dispatcher) {
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        viewModel.selectPoi(201)
+        viewModel.ratePoi(4)
+        advanceUntilIdle()
+
+        assertEquals(4, viewModel.uiState.value.selectedPoi?.userRating)
+        assertEquals(201L to 4, pointOfInterestRepository.submittedRatings.single())
+    }
+
     private fun placeTwoPoints(viewModel: RouteCreationViewModel) {
         viewModel.updateCrosshair(GeoPoint(longitude = 24.0, latitude = 49.0))
         viewModel.placePoint()
@@ -109,6 +143,8 @@ class RouteCreationViewModelTest {
 
     private fun viewModel() = RouteCreationViewModel(
         saveCustomRoute = SaveCustomRouteUseCase(repository),
+        getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository),
+        ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository),
     )
 }
 
@@ -118,5 +154,26 @@ private class FakeCustomRouteRepository : CustomRouteRepository {
     override suspend fun save(route: Route): Long {
         saved += route
         return saved.size.toLong()
+    }
+}
+
+private class FakePointOfInterestRepository : PointOfInterestRepository {
+    val submittedRatings = mutableListOf<Pair<Long, Int>>()
+
+    override suspend fun getPointsOfInterest(): List<PointOfInterest> {
+        return listOf(
+            PointOfInterest(
+                id = 201,
+                name = "Ridge marker",
+                description = "A route waypoint.",
+                location = GeoPoint(longitude = 24.2, latitude = 49.9),
+                photoResIds = emptyList(),
+                averageRating = 4.7,
+            )
+        )
+    }
+
+    override suspend fun submitRating(poiId: Long, rating: Int) {
+        submittedRatings += poiId to rating
     }
 }

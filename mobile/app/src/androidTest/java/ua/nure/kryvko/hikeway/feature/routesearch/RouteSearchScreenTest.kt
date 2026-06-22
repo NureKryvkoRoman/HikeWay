@@ -9,6 +9,8 @@ import androidx.compose.ui.test.performTextInput
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
 import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
@@ -17,6 +19,9 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.SystemTimeProvider
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
@@ -41,6 +46,8 @@ class RouteSearchScreenTest {
             saveCompletedHike = SaveCompletedHikeUseCase(FakeHikeLogRepository()),
             timeProvider = SystemTimeProvider(),
             activeTimer = NoOpActiveTimer(),
+            getPointsOfInterest = GetPointsOfInterestUseCase(FakePointOfInterestRepository()),
+            ratePointOfInterest = RatePointOfInterestUseCase(FakePointOfInterestRepository()),
         )
         composeRule.setContent {
             HikeWayTheme {
@@ -133,4 +140,21 @@ private class FakeHikeLogRepository : HikeLogRepository {
     override suspend fun save(log: HikeLog): Long = 1L
 
     override fun observeAll(): Flow<List<HikeLog>> = emptyFlow()
+}
+
+private class FakePointOfInterestRepository : PointOfInterestRepository {
+    override suspend fun getPointsOfInterest(): List<PointOfInterest> {
+        return listOf(
+            PointOfInterest(
+                id = 1,
+                name = "Test PoI",
+                description = "A test point.",
+                location = GeoPoint(longitude = 24.0, latitude = 49.0),
+                photoResIds = emptyList(),
+                averageRating = 4.0,
+            )
+        )
+    }
+
+    override suspend fun submitRating(poiId: Long, rating: Int) = Unit
 }

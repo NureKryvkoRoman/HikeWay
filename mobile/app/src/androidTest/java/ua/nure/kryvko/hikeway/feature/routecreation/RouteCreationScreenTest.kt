@@ -7,7 +7,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
 import org.junit.Test
+import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.SaveCustomRouteUseCase
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
@@ -44,6 +49,8 @@ class RouteCreationScreenTest {
     private fun setContent() {
         val viewModel = RouteCreationViewModel(
             saveCustomRoute = SaveCustomRouteUseCase(FakeCustomRouteRepository()),
+            getPointsOfInterest = GetPointsOfInterestUseCase(FakePointOfInterestRepository()),
+            ratePointOfInterest = RatePointOfInterestUseCase(FakePointOfInterestRepository()),
         )
         composeRule.setContent {
             HikeWayTheme {
@@ -59,4 +66,21 @@ class RouteCreationScreenTest {
 
 private class FakeCustomRouteRepository : CustomRouteRepository {
     override suspend fun save(route: Route): Long = 1L
+}
+
+private class FakePointOfInterestRepository : PointOfInterestRepository {
+    override suspend fun getPointsOfInterest(): List<PointOfInterest> {
+        return listOf(
+            PointOfInterest(
+                id = 1,
+                name = "Test PoI",
+                description = "A test point.",
+                location = GeoPoint(longitude = 24.0, latitude = 49.0),
+                photoResIds = emptyList(),
+                averageRating = 4.0,
+            )
+        )
+    }
+
+    override suspend fun submitRating(poiId: Long, rating: Int) = Unit
 }

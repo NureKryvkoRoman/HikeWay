@@ -7,6 +7,7 @@ import ua.nure.kryvko.hikeway.data.auth.DefaultAuthRepository
 import ua.nure.kryvko.hikeway.data.auth.HttpAuthApi
 import ua.nure.kryvko.hikeway.data.auth.SharedPreferencesAuthSessionStore
 import ua.nure.kryvko.hikeway.data.hikelogging.local.HikeWayDatabase
+import ua.nure.kryvko.hikeway.data.pois.stub.StubPointOfInterestRepository
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_1_2
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_2_3
 import ua.nure.kryvko.hikeway.data.hikelogging.local.RoomHikeLogRepository
@@ -29,6 +30,9 @@ import ua.nure.kryvko.hikeway.domain.auth.LogoutUseCase
 import ua.nure.kryvko.hikeway.domain.auth.MutableCurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
+import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
+import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
@@ -67,6 +71,8 @@ class AppContainer(context: Context) {
     private val routeRepository: RouteRepository = CompositeRouteRepository(
         listOf(StubRouteRepository(), localRouteRepository)
     )
+    private val pointOfInterestRepository: PointOfInterestRepository =
+        StubPointOfInterestRepository()
     private val hikeLogRepository: HikeLogRepository = RoomHikeLogRepository(
         database.hikeLogDao(),
         currentUserProvider,
@@ -77,6 +83,8 @@ class AppContainer(context: Context) {
     val saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository)
     val observeCompletedHikes = ObserveCompletedHikesUseCase(hikeLogRepository)
     val saveCustomRoute = SaveCustomRouteUseCase(customRouteRepository)
+    val getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository)
+    val ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository)
     val login = LoginUseCase(authRepository)
     val signUp = SignUpUseCase(authRepository)
     val restoreSession = RestoreSessionUseCase(authRepository)

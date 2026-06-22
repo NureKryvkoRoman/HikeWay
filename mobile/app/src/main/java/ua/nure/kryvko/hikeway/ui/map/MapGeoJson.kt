@@ -1,6 +1,7 @@
 package ua.nure.kryvko.hikeway.ui.map
 
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
 
 fun emptyFeatureCollectionGeoJson(): String {
@@ -29,6 +30,13 @@ fun List<Route>.toRouteFeatureCollectionGeoJson(): String {
             "[${it.longitude},${it.latitude}]"
         }
         """{"type":"Feature","properties":{"routeId":${route.id}},"geometry":{"type":"LineString","coordinates":[$coordinates]}}"""
+    }
+    return """{"type":"FeatureCollection","features":[$features]}"""
+}
+
+fun List<PointOfInterest>.toPoiFeatureCollectionGeoJson(): String {
+    val features = joinToString(separator = ",") { poi ->
+        """{"type":"Feature","properties":{"poiId":${poi.id}},"geometry":{"type":"Point","coordinates":[${poi.location.longitude},${poi.location.latitude}]}}"""
     }
     return """{"type":"FeatureCollection","features":[$features]}"""
 }

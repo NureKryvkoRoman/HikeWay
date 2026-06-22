@@ -33,21 +33,32 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.image
 import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.layers.SymbolLayer
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.compose.util.ClickResult
+import ua.nure.kryvko.hikeway.R
 import java.util.Locale
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Terrain
+import ua.nure.kryvko.hikeway.feature.pois.PoiOverviewPopup
 import ua.nure.kryvko.hikeway.ui.map.HikeWayMap
 import ua.nure.kryvko.hikeway.ui.map.MapCenterMode
 import ua.nure.kryvko.hikeway.ui.map.emptyFeatureCollectionGeoJson
 import ua.nure.kryvko.hikeway.ui.map.toGeoPoint
 import ua.nure.kryvko.hikeway.ui.map.toLineStringFeatureGeoJson
+import ua.nure.kryvko.hikeway.ui.map.toPoiFeatureCollectionGeoJson
 
 @Composable
 fun RouteCreationScreen(
@@ -78,6 +89,10 @@ fun RouteCreationScreen(
             onCancel = onCancel,
             onPlacePoint = viewModel::placePoint,
             onFinish = viewModel::finishMapStep,
+            onPoiClick = viewModel::selectPoi,
+            onDismissPoi = viewModel::dismissPoi,
+            onRatePoi = viewModel::ratePoi,
+            onAddPoiToRoute = viewModel::addSelectedPoiToRoute,
         )
         RouteCreationStep.DETAILS -> RouteDetailsScreen(
             state = state,
@@ -99,12 +114,18 @@ private fun RouteBuilderScreen(
     onCancel: () -> Unit,
     onPlacePoint: () -> Unit,
     onFinish: () -> Unit,
+    onPoiClick: (Long) -> Unit,
+    onDismissPoi: () -> Unit,
+    onRatePoi: (Int) -> Unit,
+    onAddPoiToRoute: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         RouteBuilderMap(
             points = state.points,
             crosshairPoint = state.crosshairPoint,
+            pointsOfInterest = state.pointsOfInterest,
             onCrosshairChange = onCrosshairChange,
+            onPoiClick = onPoiClick,
         )
         Crosshair(modifier = Modifier.align(Alignment.Center))
         Surface(
@@ -138,14 +159,26 @@ private fun RouteBuilderScreen(
                 }
             }
         }
+        state.selectedPoi?.let { poi ->
+            PoiOverviewPopup(
+                poi = poi,
+                onDismiss = onDismissPoi,
+                onRate = onRatePoi,
+                onAddToRoute = onAddPoiToRoute,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
     }
 }
 
 @Composable
+@Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
 private fun RouteBuilderMap(
     points: List<GeoPoint>,
     crosshairPoint: GeoPoint,
+    pointsOfInterest: List<PointOfInterest>,
     onCrosshairChange: (GeoPoint) -> Unit,
+    onPoiClick: (Long) -> Unit,
 ) {
     val solidGeoJson = remember(points) { points.toLineStringFeatureGeoJson() }
     val previewGeoJson = remember(points, crosshairPoint) {
@@ -153,6 +186,8 @@ private fun RouteBuilderMap(
             ?.let { listOf(it, crosshairPoint).toLineStringFeatureGeoJson() }
             ?: emptyFeatureCollectionGeoJson()
     }
+    val poiGeoJson = remember(pointsOfInterest) { pointsOfInterest.toPoiFeatureCollectionGeoJson() }
+    val poiPainter = painterResource(R.drawable.poi_marker_24)
 
     HikeWayMap(
         centerMode = MapCenterMode.Fixed(crosshairPoint),
@@ -184,6 +219,36 @@ private fun RouteBuilderMap(
                 color = const(Color(0xFFD93025)),
                 dasharray = const(listOf(1.5, 1.5)),
                 width = const(4.dp),
+            )
+        }
+        if (pointsOfInterest.isNotEmpty()) {
+            val poiSource = rememberGeoJsonSource(GeoJsonData.JsonString(poiGeoJson))
+            SymbolLayer(
+                id = "route-creation-points-of-interest",
+                source = poiSource,
+                iconImage = image(
+                    value = poiPainter,
+                    size = DpSize(34.dp, 34.dp),
+                    drawAsSdf = true,
+                ),
+                iconColor = const(Color(0xFFB3261E)),
+                iconHaloColor = const(Color.White),
+                iconHaloWidth = const(2.dp),
+                iconAllowOverlap = const(true),
+                iconIgnorePlacement = const(true),
+                onClick = { features ->
+                    val poiId = features.firstOrNull()
+                        ?.properties
+                        ?.get("poiId")
+                        ?.jsonPrimitive
+                        ?.longOrNull
+                    if (poiId != null) {
+                        onPoiClick(poiId)
+                        ClickResult.Consume
+                    } else {
+                        ClickResult.Pass
+                    }
+                },
             )
         }
     }
