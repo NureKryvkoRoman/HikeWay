@@ -1,5 +1,6 @@
 package ua.nure.kryvko.hikeway.feature.routesearch
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.nure.kryvko.hikeway.core.model.Difficulty
+import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.Terrain
 import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
@@ -22,11 +24,14 @@ import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routepicking.initialProgress
 import ua.nure.kryvko.hikeway.domain.routes.distanceKm
+import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 
 data class RouteSearchUiState(
     val routes: List<Route> = emptyList(),
+    val mapCenter: GeoPoint? = null,
+    val mapCenterRequestId: Long = 0L,
     val draftCriteria: RouteSearchCriteria = RouteSearchCriteria(),
     val appliedCriteria: RouteSearchCriteria = RouteSearchCriteria(),
     val isLoading: Boolean = false,
@@ -38,6 +43,7 @@ data class RouteSearchUiState(
 
 class RouteSearchViewModel(
     private val searchRoutes: SearchRoutesUseCase,
+    private val getCurrentLocation: GetCurrentLocationUseCase,
     private val routeTrackingProvider: RouteTrackingProvider,
     private val saveCompletedHike: SaveCompletedHikeUseCase,
     private val timeProvider: TimeProvider,
@@ -49,6 +55,7 @@ class RouteSearchViewModel(
     private var activeTimerJob: Job? = null
 
     init {
+        centerOnCurrentLocation()
         refresh(RouteSearchCriteria())
     }
 
@@ -78,6 +85,26 @@ class RouteSearchViewModel(
 
     fun refreshCurrentSearch() {
         refresh(_uiState.value.appliedCriteria)
+    }
+
+    fun centerOnCurrentLocation() {
+        viewModelScope.launch {
+            runCatching { getCurrentLocation() }
+                .onSuccess { location ->
+                    _uiState.update {
+                        it.copy(
+                            mapCenter = location,
+                            mapCenterRequestId = it.mapCenterRequestId + 1,
+                            errorMessage = null,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(errorMessage = error.message ?: "Current location is unavailable.")
+                    }
+                }
+        }
     }
 
     fun previewRoute(route: Route) {
@@ -257,6 +284,7 @@ class RouteSearchViewModel(
     companion object {
         fun factory(
             searchRoutes: SearchRoutesUseCase,
+            getCurrentLocation: GetCurrentLocationUseCase,
             routeTrackingProvider: RouteTrackingProvider,
             saveCompletedHike: SaveCompletedHikeUseCase,
             timeProvider: TimeProvider,
@@ -267,6 +295,7 @@ class RouteSearchViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     return RouteSearchViewModel(
                         searchRoutes = searchRoutes,
+                        getCurrentLocation = getCurrentLocation,
                         routeTrackingProvider = routeTrackingProvider,
                         saveCompletedHike = saveCompletedHike,
                         timeProvider = timeProvider,

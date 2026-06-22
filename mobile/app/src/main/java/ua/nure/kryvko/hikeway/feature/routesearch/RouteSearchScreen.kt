@@ -1,6 +1,9 @@
 package ua.nure.kryvko.hikeway.feature.routesearch
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +15,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -24,12 +32,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedAssistChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.maplibre.compose.camera.CameraPosition
@@ -53,7 +65,9 @@ import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.expressions.value.IconRotationAlignment
 import org.maplibre.spatialk.geojson.Position
+import ua.nure.kryvko.hikeway.R
 import java.util.Locale
+import kotlin.time.Duration.Companion.milliseconds
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
@@ -88,6 +102,9 @@ fun RouteSearchScreen(
             walkedPath = pickingSession?.walkedPath ?: emptyList(),
             userPosition = pickingSession?.userPosition,
             userBearingDegrees = pickingSession?.bearingDegrees ?: 0.0,
+            mapCenter = state.mapCenter,
+            mapCenterRequestId = state.mapCenterRequestId,
+            onCenterLocation = viewModel::centerOnCurrentLocation,
             highlightedMode = pickingSession != null || previewRoute != null,
         )
         if (pickingSession != null) {
@@ -142,6 +159,9 @@ private fun RoutesMap(
     walkedPath: List<GeoPoint>,
     userPosition: GeoPoint?,
     userBearingDegrees: Double,
+    mapCenter: GeoPoint?,
+    mapCenterRequestId: Long,
+    onCenterLocation: () -> Unit,
     highlightedMode: Boolean,
 ) {
     val cameraState = rememberCameraState(
@@ -155,44 +175,73 @@ private fun RoutesMap(
     val userGeoJson = remember(userPosition) { userPosition.toGeoJson() }
     val arrowPainter = rememberVectorPainter(Icons.Default.KeyboardArrowUp)
 
-    MaplibreMap(
-        baseStyle = BaseStyle.Uri(MAP_STYLE),
-        cameraState = cameraState,
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        val routesSource = rememberGeoJsonSource(GeoJsonData.JsonString(geoJson))
-        LineLayer(
-            id = "matching-routes",
-            source = routesSource,
-            color = const(if (highlightedMode) Color(0xFF0B57D0) else Color(0xFF176B3A)),
-            width = const(if (highlightedMode) 6.dp else 4.dp),
-        )
-        if (walkedPath.isNotEmpty()) {
-            val walkedPathSource = rememberGeoJsonSource(GeoJsonData.JsonString(walkedPathGeoJson))
-            LineLayer(
-                id = "walked-path",
-                source = walkedPathSource,
-                color = const(Color(0xFFD93025)),
-                width = const(4.dp),
+    LaunchedEffect(mapCenterRequestId) {
+        mapCenter?.let { center ->
+            cameraState.animateTo(
+                finalPosition = cameraState.position.copy(
+                    target = Position(longitude = center.longitude, latitude = center.latitude),
+                    zoom = maxOf(cameraState.position.zoom, 14.0),
+                ),
+                duration = 300.milliseconds,
             )
         }
-        if (userPosition != null) {
-            val userSource = rememberGeoJsonSource(GeoJsonData.JsonString(userGeoJson))
-            SymbolLayer(
-                id = "user-position",
-                source = userSource,
-                iconImage = image(
-                    value = arrowPainter,
-                    size = DpSize(32.dp, 32.dp),
-                    drawAsSdf = true,
-                ),
-                iconColor = const(Color(0xFFD93025)),
-                iconHaloColor = const(Color.White),
-                iconHaloWidth = const(2.dp),
-                iconAllowOverlap = const(true),
-                iconIgnorePlacement = const(true),
-                iconRotationAlignment = const(IconRotationAlignment.Map),
-                iconRotate = const(userBearingDegrees.toFloat()),
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        MaplibreMap(
+            baseStyle = BaseStyle.Uri(MAP_STYLE),
+            cameraState = cameraState,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            val routesSource = rememberGeoJsonSource(GeoJsonData.JsonString(geoJson))
+            LineLayer(
+                id = "matching-routes",
+                source = routesSource,
+                color = const(if (highlightedMode) Color(0xFF0B57D0) else Color(0xFF176B3A)),
+                width = const(if (highlightedMode) 6.dp else 4.dp),
+            )
+            if (walkedPath.isNotEmpty()) {
+                val walkedPathSource =
+                    rememberGeoJsonSource(GeoJsonData.JsonString(walkedPathGeoJson))
+                LineLayer(
+                    id = "walked-path",
+                    source = walkedPathSource,
+                    color = const(Color(0xFFD93025)),
+                    width = const(4.dp),
+                )
+            }
+            if (userPosition != null) {
+                val userSource = rememberGeoJsonSource(GeoJsonData.JsonString(userGeoJson))
+                SymbolLayer(
+                    id = "user-position",
+                    source = userSource,
+                    iconImage = image(
+                        value = arrowPainter,
+                        size = DpSize(32.dp, 32.dp),
+                        drawAsSdf = true,
+                    ),
+                    iconColor = const(Color(0xFFD93025)),
+                    iconHaloColor = const(Color.White),
+                    iconHaloWidth = const(2.dp),
+                    iconAllowOverlap = const(true),
+                    iconIgnorePlacement = const(true),
+                    iconRotationAlignment = const(IconRotationAlignment.Map),
+                    iconRotate = const(userBearingDegrees.toFloat()),
+                )
+            }
+        }
+        Button(
+            onClick = onCenterLocation,
+            shape = CircleShape,
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(70.dp)
+                .padding(16.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.center_24),
+                contentDescription = "Center location button",
             )
         }
     }
@@ -266,7 +315,10 @@ private fun ResultsPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("${state.routes.size} routes found", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "${state.routes.size} routes found",
+                    style = MaterialTheme.typography.titleMedium
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onCreateRoute) {
                         Text("Create route")
@@ -283,10 +335,12 @@ private fun ResultsPanel(
                     modifier = Modifier.padding(vertical = 16.dp),
                     color = MaterialTheme.colorScheme.error,
                 )
+
                 state.routes.isEmpty() -> Text(
                     "No routes match the applied filters.",
                     modifier = Modifier.padding(vertical = 16.dp),
                 )
+
                 else -> LazyColumn(
                     modifier = Modifier.padding(top = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -311,7 +365,7 @@ private fun RouteCard(route: Route, onClick: () -> Unit) {
             Text(route.name, style = MaterialTheme.typography.titleSmall)
             Text(
                 "${route.distanceKm} km | ${route.estimatedTimeMinutes} min | " +
-                    "${route.elevationGainMeters} m gain",
+                        "${route.elevationGainMeters} m gain",
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
@@ -344,7 +398,7 @@ private fun PickingPanel(
             Text(session.route.name, style = MaterialTheme.typography.titleMedium)
             Text(
                 "${session.route.distanceKm} km | ${session.route.estimatedTimeMinutes} min | " +
-                    "${session.route.elevationGainMeters} m gain",
+                        "${session.route.elevationGainMeters} m gain",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
@@ -372,6 +426,7 @@ private fun PickingPanel(
                     RoutePickingStatus.ACTIVE -> Button(onClick = onPause) {
                         Text("Pause")
                     }
+
                     RoutePickingStatus.PAUSED -> {
                         Button(onClick = onUnpause) {
                             Text("Unpause")
@@ -397,11 +452,31 @@ private fun FilterDialog(
     onApply: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var minimumDistance by remember { mutableStateOf(criteria.distanceKm?.start?.toString().orEmpty()) }
-    var maximumDistance by remember { mutableStateOf(criteria.distanceKm?.endInclusive?.toString().orEmpty()) }
-    var minimumTime by remember { mutableStateOf(criteria.estimatedTimeMinutes?.first?.toString().orEmpty()) }
-    var maximumTime by remember { mutableStateOf(criteria.estimatedTimeMinutes?.last?.toString().orEmpty()) }
-    var maximumProximity by remember { mutableStateOf(criteria.maxProximityKm?.toString().orEmpty()) }
+    var minimumDistance by remember {
+        mutableStateOf(
+            criteria.distanceKm?.start?.toString().orEmpty()
+        )
+    }
+    var maximumDistance by remember {
+        mutableStateOf(
+            criteria.distanceKm?.endInclusive?.toString().orEmpty()
+        )
+    }
+    var minimumTime by remember {
+        mutableStateOf(
+            criteria.estimatedTimeMinutes?.first?.toString().orEmpty()
+        )
+    }
+    var maximumTime by remember {
+        mutableStateOf(
+            criteria.estimatedTimeMinutes?.last?.toString().orEmpty()
+        )
+    }
+    var maximumProximity by remember {
+        mutableStateOf(
+            criteria.maxProximityKm?.toString().orEmpty()
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -428,7 +503,14 @@ private fun FilterDialog(
                     onChange = { minimum, maximum ->
                         minimumTime = minimum
                         maximumTime = maximum
-                        onCriteriaChange(criteria.copy(estimatedTimeMinutes = integerRange(minimum, maximum)))
+                        onCriteriaChange(
+                            criteria.copy(
+                                estimatedTimeMinutes = integerRange(
+                                    minimum,
+                                    maximum
+                                )
+                            )
+                        )
                     },
                 )
                 OutlinedTextField(

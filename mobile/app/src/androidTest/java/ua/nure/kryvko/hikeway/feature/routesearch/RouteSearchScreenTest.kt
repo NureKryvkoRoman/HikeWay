@@ -17,6 +17,7 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.SystemTimeProvider
+import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
 import kotlinx.coroutines.flow.Flow
@@ -29,11 +30,13 @@ class RouteSearchScreenTest {
 
     @Before
     fun setUp() {
+        val locationProvider = StubLocationProvider()
         val viewModel = RouteSearchViewModel(
             searchRoutes = SearchRoutesUseCase(
                 repository = StubRouteRepository(),
-                locationProvider = StubLocationProvider(),
+                locationProvider = locationProvider,
             ),
+            getCurrentLocation = GetCurrentLocationUseCase(locationProvider),
             routeTrackingProvider = StubRouteTrackingProvider(),
             saveCompletedHike = SaveCompletedHikeUseCase(FakeHikeLogRepository()),
             timeProvider = SystemTimeProvider(),

@@ -29,6 +29,7 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteProgress
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
+import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
 import kotlinx.coroutines.delay
@@ -84,6 +85,31 @@ class RouteSearchViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoading)
         assertNotNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun centersMapOnCurrentLocationAtStartup() = runTest(dispatcher) {
+        val currentLocation = GeoPoint(longitude = 30.5234, latitude = 50.4501)
+        val viewModel = viewModel(StubLocationProvider(currentLocation))
+        advanceUntilIdle()
+
+        assertEquals(currentLocation, viewModel.uiState.value.mapCenter)
+    }
+
+    @Test
+    fun centerOnCurrentLocationUpdatesMapCenter() = runTest(dispatcher) {
+        val locationProvider = MutableLocationProvider(
+            location = GeoPoint(longitude = 24.0316, latitude = 49.8429),
+        )
+        val viewModel = viewModel(locationProvider)
+        advanceUntilIdle()
+
+        val newLocation = GeoPoint(longitude = 30.5234, latitude = 50.4501)
+        locationProvider.location = newLocation
+        viewModel.centerOnCurrentLocation()
+        advanceUntilIdle()
+
+        assertEquals(newLocation, viewModel.uiState.value.mapCenter)
     }
 
     @Test
@@ -283,12 +309,19 @@ class RouteSearchViewModelTest {
                 repository = StubRouteRepository(),
                 locationProvider = locationProvider,
             ),
+            getCurrentLocation = GetCurrentLocationUseCase(locationProvider),
             routeTrackingProvider = routeTrackingProvider,
             saveCompletedHike = SaveCompletedHikeUseCase(hikeLogRepository),
             timeProvider = timeProvider,
             activeTimer = TestActiveTimer(),
         )
     }
+}
+
+private class MutableLocationProvider(
+    var location: GeoPoint,
+) : LocationProvider {
+    override suspend fun getCurrentLocation(): GeoPoint = location
 }
 
 private class FakeTimeProvider : TimeProvider {

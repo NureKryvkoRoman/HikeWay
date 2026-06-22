@@ -1,13 +1,13 @@
 package ua.nure.kryvko.hikeway
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,6 +47,8 @@ import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchViewModel
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
 
 class MainActivity : ComponentActivity() {
+    private lateinit var routeSearchViewModel: RouteSearchViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -61,10 +63,11 @@ class MainActivity : ComponentActivity() {
                 logout = container.logout,
             ),
         )[AuthViewModel::class.java]
-        val routeSearchViewModel = ViewModelProvider(
+        routeSearchViewModel = ViewModelProvider(
             this,
             RouteSearchViewModel.factory(
                 searchRoutes = container.searchRoutes,
+                getCurrentLocation = container.getCurrentLocation,
                 routeTrackingProvider = container.routeTrackingProvider,
                 saveCompletedHike = container.saveCompletedHike,
                 timeProvider = container.timeProvider,
@@ -93,6 +96,21 @@ class MainActivity : ComponentActivity() {
                     routeCreationViewModel = routeCreationViewModel,
                 )
             }
+        }
+    }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE &&
+            grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+        ) {
+            routeSearchViewModel.centerOnCurrentLocation()
+            routeSearchViewModel.refreshCurrentSearch()
         }
     }
 

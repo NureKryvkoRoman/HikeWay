@@ -36,6 +36,14 @@ class SearchRoutesUseCase(
     }
 }
 
+class GetCurrentLocationUseCase(
+    private val locationProvider: LocationProvider,
+) {
+    suspend operator fun invoke(): GeoPoint {
+        return locationProvider.getCurrentLocation()
+    }
+}
+
 class SaveCustomRouteUseCase(
     private val repository: CustomRouteRepository,
 ) {
