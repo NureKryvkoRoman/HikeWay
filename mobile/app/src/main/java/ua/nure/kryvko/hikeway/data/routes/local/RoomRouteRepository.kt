@@ -5,6 +5,7 @@ import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.RouteGeometry
 import ua.nure.kryvko.hikeway.core.model.Terrain
+import ua.nure.kryvko.hikeway.data.geojson.GeoJsonLineStringCodec
 import ua.nure.kryvko.hikeway.domain.auth.CurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.RouteRepository
@@ -37,7 +38,7 @@ fun Route.toEntity(ownerUserId: String) = RouteEntity(
     difficulty = difficulty.name,
     elevationGainMeters = elevationGainMeters,
     terrain = terrain.name,
-    geometryGeoJson = geometry.points.toGeoJsonLineString(),
+    geometryGeoJson = GeoJsonLineStringCodec.encode(geometry.points),
 )
 
 fun RouteEntity.toDomain() = Route(
@@ -49,23 +50,5 @@ fun RouteEntity.toDomain() = Route(
     difficulty = Difficulty.valueOf(difficulty),
     elevationGainMeters = elevationGainMeters,
     terrain = Terrain.valueOf(terrain),
-    geometry = RouteGeometry(geometryGeoJson.toGeoPoints()),
+    geometry = RouteGeometry(GeoJsonLineStringCodec.decode(geometryGeoJson)),
 )
-
-fun List<GeoPoint>.toGeoJsonLineString(): String {
-    val coordinates = joinToString(separator = ",") {
-        "[${it.longitude},${it.latitude}]"
-    }
-    return """{"type":"LineString","coordinates":[$coordinates]}"""
-}
-
-private fun String.toGeoPoints(): List<GeoPoint> {
-    return coordinateRegex.findAll(this).map { match ->
-        GeoPoint(
-            longitude = match.groupValues[1].toDouble(),
-            latitude = match.groupValues[2].toDouble(),
-        )
-    }.toList()
-}
-
-private val coordinateRegex = Regex("""\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*]""")

@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.data.geojson.GeoJsonLineStringCodec
 import ua.nure.kryvko.hikeway.domain.auth.CurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
@@ -40,7 +40,7 @@ fun HikeLog.toEntity(ownerUserId: String) = HikeLogEntity(
     activeDurationMillis = activeDurationMillis,
     wallClockDurationMillis = wallClockDurationMillis,
     totalDistanceKm = totalDistanceKm,
-    pathGeoJson = path.toGeoJsonLineString(),
+    pathGeoJson = GeoJsonLineStringCodec.encode(path),
 )
 
 fun HikeLogEntity.toDomain() = HikeLog(
@@ -52,23 +52,5 @@ fun HikeLogEntity.toDomain() = HikeLog(
     activeDurationMillis = activeDurationMillis,
     wallClockDurationMillis = wallClockDurationMillis,
     totalDistanceKm = totalDistanceKm,
-    path = pathGeoJson.toGeoPoints(),
+    path = GeoJsonLineStringCodec.decode(pathGeoJson),
 )
-
-fun List<GeoPoint>.toGeoJsonLineString(): String {
-    val coordinates = joinToString(separator = ",") {
-        "[${it.longitude},${it.latitude}]"
-    }
-    return """{"type":"LineString","coordinates":[$coordinates]}"""
-}
-
-private fun String.toGeoPoints(): List<GeoPoint> {
-    return coordinateRegex.findAll(this).map { match ->
-        GeoPoint(
-            longitude = match.groupValues[1].toDouble(),
-            latitude = match.groupValues[2].toDouble(),
-        )
-    }.toList()
-}
-
-private val coordinateRegex = Regex("""\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*]""")
