@@ -35,21 +35,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
-import org.maplibre.compose.camera.CameraPosition
-import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.layers.LineLayer
-import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
-import org.maplibre.compose.style.BaseStyle
-import org.maplibre.spatialk.geojson.Position
 import java.util.Locale
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Terrain
-
-private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+import ua.nure.kryvko.hikeway.ui.map.HikeWayMap
+import ua.nure.kryvko.hikeway.ui.map.MapCenterMode
+import ua.nure.kryvko.hikeway.ui.map.emptyFeatureCollectionGeoJson
+import ua.nure.kryvko.hikeway.ui.map.toGeoPoint
+import ua.nure.kryvko.hikeway.ui.map.toLineStringFeatureGeoJson
 
 @Composable
 fun RouteCreationScreen(
@@ -149,31 +147,25 @@ private fun RouteBuilderMap(
     crosshairPoint: GeoPoint,
     onCrosshairChange: (GeoPoint) -> Unit,
 ) {
-    val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(
-            target = Position(longitude = crosshairPoint.longitude, latitude = crosshairPoint.latitude),
-            zoom = 12.0,
-        )
-    )
-    val solidGeoJson = remember(points) { points.toLineFeatureGeoJson() }
+    val solidGeoJson = remember(points) { points.toLineStringFeatureGeoJson() }
     val previewGeoJson = remember(points, crosshairPoint) {
         points.lastOrNull()
-            ?.let { listOf(it, crosshairPoint).toLineFeatureGeoJson() }
-            ?: emptyFeatureCollection()
+            ?.let { listOf(it, crosshairPoint).toLineStringFeatureGeoJson() }
+            ?: emptyFeatureCollectionGeoJson()
     }
 
-    LaunchedEffect(cameraState) {
-        snapshotFlow { cameraState.position.target }
-            .distinctUntilChanged()
-            .collect { target ->
-                onCrosshairChange(GeoPoint(longitude = target.longitude, latitude = target.latitude))
+    HikeWayMap(
+        centerMode = MapCenterMode.Fixed(crosshairPoint),
+        initialZoom = 12.0,
+        cameraEffect = { cameraState ->
+            LaunchedEffect(cameraState) {
+                snapshotFlow { cameraState.position.target }
+                    .distinctUntilChanged()
+                    .collect { target ->
+                        onCrosshairChange(target.toGeoPoint())
+                    }
             }
-    }
-
-    MaplibreMap(
-        baseStyle = BaseStyle.Uri(MAP_STYLE),
-        cameraState = cameraState,
-        modifier = Modifier.fillMaxSize(),
+        },
     ) {
         if (points.size >= 2) {
             val solidSource = rememberGeoJsonSource(GeoJsonData.JsonString(solidGeoJson))
@@ -303,16 +295,6 @@ private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
         AssistChip(onClick = onClick, label = { Text(label) })
     }
 }
-
-private fun List<GeoPoint>.toLineFeatureGeoJson(): String {
-    if (size < 2) return emptyFeatureCollection()
-    val coordinates = joinToString(separator = ",") {
-        "[${it.longitude},${it.latitude}]"
-    }
-    return """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[$coordinates]}}"""
-}
-
-private fun emptyFeatureCollection() = """{"type":"FeatureCollection","features":[]}"""
 
 private fun Difficulty.label() = name.lowercase().replaceFirstChar(Char::uppercase)
 

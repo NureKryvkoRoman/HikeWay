@@ -40,7 +40,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,21 +52,15 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import org.maplibre.compose.camera.CameraPosition
-import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.expressions.dsl.image
 import org.maplibre.compose.layers.LineLayer
 import org.maplibre.compose.layers.SymbolLayer
-import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
-import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.expressions.value.IconRotationAlignment
-import org.maplibre.spatialk.geojson.Position
 import ua.nure.kryvko.hikeway.R
 import java.util.Locale
-import kotlin.time.Duration.Companion.milliseconds
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
@@ -75,8 +68,12 @@ import ua.nure.kryvko.hikeway.core.model.Terrain
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingSession
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
-
-private const val MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty"
+import ua.nure.kryvko.hikeway.ui.map.HikeWayMap
+import ua.nure.kryvko.hikeway.ui.map.MapCenterMode
+import ua.nure.kryvko.hikeway.ui.map.MapCenterRequest
+import ua.nure.kryvko.hikeway.ui.map.toLineStringFeatureGeoJson
+import ua.nure.kryvko.hikeway.ui.map.toPointFeatureGeoJson
+import ua.nure.kryvko.hikeway.ui.map.toRouteFeatureCollectionGeoJson
 
 @Composable
 fun RouteSearchScreen(
@@ -105,6 +102,10 @@ fun RouteSearchScreen(
             mapCenter = state.mapCenter,
             mapCenterRequestId = state.mapCenterRequestId,
             onCenterLocation = viewModel::centerOnCurrentLocation,
+            centerMode = previewRoute
+                ?.takeIf { pickingSession == null }
+                ?.let { MapCenterMode.RouteStart(it.geometry.points) }
+                ?: MapCenterMode.CurrentLocation,
             highlightedMode = pickingSession != null || previewRoute != null,
         )
         if (pickingSession != null) {
@@ -154,6 +155,7 @@ fun RouteSearchScreen(
 }
 
 @Composable
+@Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
 private fun RoutesMap(
     routes: List<Route>,
     walkedPath: List<GeoPoint>,
@@ -162,37 +164,52 @@ private fun RoutesMap(
     mapCenter: GeoPoint?,
     mapCenterRequestId: Long,
     onCenterLocation: () -> Unit,
+    centerMode: MapCenterMode,
     highlightedMode: Boolean,
 ) {
-    val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(
-            target = Position(longitude = 24.0316, latitude = 49.8429),
-            zoom = 10.0,
-        )
-    )
-    val geoJson = remember(routes) { routes.toGeoJson() }
-    val walkedPathGeoJson = remember(walkedPath) { walkedPath.toWalkedPathGeoJson() }
-    val userGeoJson = remember(userPosition) { userPosition.toGeoJson() }
+    val geoJson = remember(routes) { routes.toRouteFeatureCollectionGeoJson() }
+    val walkedPathGeoJson = remember(walkedPath) { walkedPath.toLineStringFeatureGeoJson() }
+    val userGeoJson = remember(userPosition) { userPosition.toPointFeatureGeoJson() }
     val arrowPainter = rememberVectorPainter(Icons.Default.KeyboardArrowUp)
-
-    LaunchedEffect(mapCenterRequestId) {
-        mapCenter?.let { center ->
-            cameraState.animateTo(
-                finalPosition = cameraState.position.copy(
-                    target = Position(longitude = center.longitude, latitude = center.latitude),
-                    zoom = maxOf(cameraState.position.zoom, 14.0),
-                ),
-                duration = 300.milliseconds,
+    val currentLocationCenterRequest = mapCenter?.let {
+        MapCenterRequest(
+            target = it,
+            zoom = 14.0,
+            requestId = mapCenterRequestId,
+        )
+    }
+    val routeStartCenterRequest = (centerMode as? MapCenterMode.RouteStart)
+        ?.points
+        ?.firstOrNull()
+        ?.let {
+            MapCenterRequest(
+                target = it,
+                zoom = 12.0,
+                requestId = it.hashCode().toLong(),
             )
         }
-    }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        MaplibreMap(
-            baseStyle = BaseStyle.Uri(MAP_STYLE),
-            cameraState = cameraState,
-            modifier = Modifier.fillMaxSize(),
-        ) {
+    HikeWayMap(
+        centerMode = centerMode,
+        currentLocation = mapCenter,
+        centerRequest = routeStartCenterRequest ?: currentLocationCenterRequest,
+        overlays = {
+            Button(
+                onClick = onCenterLocation,
+                shape = CircleShape,
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(70.dp)
+                    .padding(16.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.center_24),
+                    contentDescription = "Center location button",
+                )
+            }
+        },
+    ) {
             val routesSource = rememberGeoJsonSource(GeoJsonData.JsonString(geoJson))
             LineLayer(
                 id = "matching-routes",
@@ -230,21 +247,6 @@ private fun RoutesMap(
                 )
             }
         }
-        Button(
-            onClick = onCenterLocation,
-            shape = CircleShape,
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .size(70.dp)
-                .padding(16.dp),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.center_24),
-                contentDescription = "Center location button",
-            )
-        }
-    }
 }
 
 @Composable
@@ -598,31 +600,6 @@ private fun integerRange(minimum: String, maximum: String): IntRange? {
     val min = minimum.toIntOrNull() ?: return null
     val max = maximum.toIntOrNull() ?: return null
     return min..max
-}
-
-private fun List<Route>.toGeoJson(): String {
-    val features = joinToString(separator = ",") { route ->
-        val coordinates = route.geometry.points.joinToString(separator = ",") {
-            "[${it.longitude},${it.latitude}]"
-        }
-        """{"type":"Feature","properties":{"routeId":${route.id}},"geometry":{"type":"LineString","coordinates":[$coordinates]}}"""
-    }
-    return """{"type":"FeatureCollection","features":[$features]}"""
-}
-
-private fun GeoPoint?.toGeoJson(): String {
-    return if (this == null) {
-        """{"type":"FeatureCollection","features":[]}"""
-    } else {
-        """{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[$longitude,$latitude]}}"""
-    }
-}
-
-private fun List<GeoPoint>.toWalkedPathGeoJson(): String {
-    val coordinates = joinToString(separator = ",") {
-        "[${it.longitude},${it.latitude}]"
-    }
-    return """{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[$coordinates]}}"""
 }
 
 private fun Difficulty.label() = name.lowercase().replaceFirstChar(Char::uppercase)
