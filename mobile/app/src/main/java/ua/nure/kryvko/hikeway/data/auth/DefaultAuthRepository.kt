@@ -20,6 +20,7 @@ class DefaultAuthRepository(
     private val sessionFactory: AuthSessionFactory,
     private val refreshCoordinator: TokenRefreshCoordinator,
     private val gson: Gson,
+    private val onAuthenticated: suspend () -> Unit = {},
 ) : AuthRepository {
     override fun observeSession(): Flow<AuthSession?> = sessionManager.activeSession
 
@@ -39,7 +40,7 @@ class DefaultAuthRepository(
             sessionFactory.create(response, username).also(sessionManager::save)
         }.getOrElse {
             throw it.toApiException(gson, "Could not log in")
-        }
+        }.also { runCatching { onAuthenticated() } }
     }
 
     override suspend fun signUp(request: SignUpRequest) {
@@ -49,6 +50,7 @@ class DefaultAuthRepository(
 
     override suspend fun refreshSession(): AuthSession? {
         return refreshCoordinator.forceRefresh()
+            ?.also { runCatching { onAuthenticated() } }
     }
 
     override suspend fun logout() {

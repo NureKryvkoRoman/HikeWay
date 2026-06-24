@@ -93,6 +93,36 @@ class HikeWayMigrationTest {
         }
     }
 
+    @Test
+    fun migratesFromThreeToFourAndMarksExistingRowsForSync() {
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL(
+                """
+                INSERT INTO routes (
+                    ownerUserId, name, description, distanceKm, estimatedTimeMinutes,
+                    difficulty, elevationGainMeters, terrain, geometryGeoJson
+                ) VALUES (
+                    'user-1', 'Local route', 'Description', 1.0, 15,
+                    'EASY', 0, 'FOREST',
+                    '{"type":"LineString","coordinates":[[24.0,49.0],[24.1,49.1]]}'
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 4, true, MIGRATION_3_4).apply {
+            query("SELECT clientId, syncVersion, syncState, deleted FROM routes").use { cursor ->
+                cursor.moveToFirst()
+                assertEquals(false, cursor.getString(0).isBlank())
+                assertEquals(0, cursor.getLong(1))
+                assertEquals("PENDING", cursor.getString(2))
+                assertEquals(0, cursor.getInt(3))
+            }
+            close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "hikeway-migration-test"
     }

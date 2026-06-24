@@ -7,6 +7,7 @@ import ua.nure.kryvko.hikeway.data.auth.AuthSessionFactory
 import ua.nure.kryvko.hikeway.data.auth.AuthSessionManager
 import ua.nure.kryvko.hikeway.data.services.backend.BackendAuthService
 import ua.nure.kryvko.hikeway.data.services.keycloak.KeycloakService
+import ua.nure.kryvko.hikeway.data.services.backend.SyncService
 
 class ApiServices(
     backendBaseUrl: String,
@@ -40,4 +41,5 @@ class ApiServices(
             .authenticator(AccessTokenAuthenticator(tokenRefreshCoordinator))
             .build(),
     )
+    val sync: SyncService = authenticatedBackend.create(SyncService::class.java)
 }

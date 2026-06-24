@@ -9,13 +9,26 @@ import ua.nure.kryvko.hikeway.data.geojson.GeoJsonLineStringCodec
 import ua.nure.kryvko.hikeway.domain.auth.CurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
+import ua.nure.kryvko.hikeway.data.routes.local.RouteDao
+import java.util.UUID
 
 class RoomHikeLogRepository(
     private val dao: HikeLogDao,
     private val currentUserProvider: CurrentUserProvider,
+    private val onLocalMutation: suspend () -> Unit = {},
+    private val routeDao: RouteDao? = null,
 ) : HikeLogRepository {
     override suspend fun save(log: HikeLog): Long {
-        return dao.insert(log.toEntity(currentUserProvider.requireCurrentUserId()))
+        val ownerUserId = currentUserProvider.requireCurrentUserId()
+        val route = routeDao?.findById(ownerUserId, log.routeId)
+        return dao.insert(
+            log.toEntity(
+                ownerUserId = ownerUserId,
+                routeClientId = route?.clientId,
+                routeServerId = route?.serverId,
+            )
+        )
+            .also { runCatching { onLocalMutation() } }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,7 +43,13 @@ class RoomHikeLogRepository(
     }
 }
 
-fun HikeLog.toEntity(ownerUserId: String) = HikeLogEntity(
+fun HikeLog.toEntity(
+    ownerUserId: String,
+    clientId: String = UUID.randomUUID().toString(),
+    updatedAtEpochMillis: Long = System.currentTimeMillis(),
+    routeClientId: String? = null,
+    routeServerId: Long? = null,
+) = HikeLogEntity(
     id = id,
     ownerUserId = ownerUserId,
     routeId = routeId,
@@ -41,6 +60,10 @@ fun HikeLog.toEntity(ownerUserId: String) = HikeLogEntity(
     wallClockDurationMillis = wallClockDurationMillis,
     totalDistanceKm = totalDistanceKm,
     pathGeoJson = GeoJsonLineStringCodec.encode(path),
+    clientId = clientId,
+    updatedAtEpochMillis = updatedAtEpochMillis,
+    routeClientId = routeClientId,
+    routeServerId = routeServerId,
 )
 
 fun HikeLogEntity.toDomain() = HikeLog(

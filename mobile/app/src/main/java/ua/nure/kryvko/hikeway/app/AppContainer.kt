@@ -13,6 +13,7 @@ import ua.nure.kryvko.hikeway.data.hikelogging.local.HikeWayDatabase
 import ua.nure.kryvko.hikeway.data.pois.stub.StubPointOfInterestRepository
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_1_2
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_2_3
+import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_3_4
 import ua.nure.kryvko.hikeway.data.hikelogging.local.RoomHikeLogRepository
 import ua.nure.kryvko.hikeway.core.location.LocationProvider
 import ua.nure.kryvko.hikeway.core.location.createLocationProvider
@@ -21,6 +22,11 @@ import ua.nure.kryvko.hikeway.data.routes.CompositeRouteRepository
 import ua.nure.kryvko.hikeway.data.routes.local.RoomRouteRepository
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
 import ua.nure.kryvko.hikeway.data.services.network.ApiServices
+import ua.nure.kryvko.hikeway.data.sync.RetrofitSyncTransport
+import ua.nure.kryvko.hikeway.data.sync.RoomSyncLocalDataSource
+import ua.nure.kryvko.hikeway.data.sync.SharedPreferencesSyncMetadataStore
+import ua.nure.kryvko.hikeway.data.sync.SyncCoordinator
+import ua.nure.kryvko.hikeway.data.sync.SyncTrigger
 import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.ObserveCompletedHikesUseCase
@@ -50,7 +56,7 @@ class AppContainer(context: Context) {
         context.applicationContext,
         HikeWayDatabase::class.java,
         "hikeway.db",
-    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
     private val locationProvider: LocationProvider = createLocationProvider(
         context = context,
         useSimulatedGps = BuildConfig.USE_SIMULATED_GPS,
@@ -81,6 +87,17 @@ class AppContainer(context: Context) {
         sessionFactory = authSessionFactory,
         gson = gson,
     )
+    private val syncCoordinator = SyncCoordinator(
+        transport = RetrofitSyncTransport(apiServices.sync),
+        localDataSource = RoomSyncLocalDataSource(
+            routeDao = database.routeDao(),
+            hikeLogDao = database.hikeLogDao(),
+            conflictDao = database.syncConflictDao(),
+            currentUserProvider = currentUserProvider,
+        ),
+        metadataStore = SharedPreferencesSyncMetadataStore(context),
+    )
+    private val syncTrigger = SyncTrigger(syncCoordinator, currentUserProvider)
     private val authRepository: AuthRepository = DefaultAuthRepository(
         keycloakService = apiServices.keycloak,
         backendAuthService = apiServices.backendAuth,
@@ -90,8 +107,13 @@ class AppContainer(context: Context) {
         sessionFactory = authSessionFactory,
         refreshCoordinator = apiServices.tokenRefreshCoordinator,
         gson = gson,
+        onAuthenticated = syncTrigger::invoke,
     )
-    private val localRouteRepository = RoomRouteRepository(database.routeDao(), currentUserProvider)
+    private val localRouteRepository = RoomRouteRepository(
+        dao = database.routeDao(),
+        currentUserProvider = currentUserProvider,
+        onLocalMutation = syncTrigger::invoke,
+    )
     private val customRouteRepository: CustomRouteRepository = localRouteRepository
     private val routeRepository: RouteRepository = CompositeRouteRepository(
         listOf(StubRouteRepository(), localRouteRepository)
@@ -101,6 +123,8 @@ class AppContainer(context: Context) {
     private val hikeLogRepository: HikeLogRepository = RoomHikeLogRepository(
         database.hikeLogDao(),
         currentUserProvider,
+        syncTrigger::invoke,
+        database.routeDao(),
     )
 
     val searchRoutes = SearchRoutesUseCase(routeRepository, locationProvider)
@@ -115,4 +139,12 @@ class AppContainer(context: Context) {
     val restoreSession = RestoreSessionUseCase(authRepository)
     val logout = LogoutUseCase(authRepository)
     val observeAuthSession = ObserveAuthSessionUseCase(authRepository)
+
+    suspend fun synchronizeNow() {
+        syncTrigger()
+    }
+
+    fun close() {
+        database.close()
+    }
 }

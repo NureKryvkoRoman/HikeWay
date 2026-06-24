@@ -9,37 +9,45 @@ import ua.nure.kryvko.hikeway.exception.InvalidUserDataException;
 import ua.nure.kryvko.hikeway.exception.KeycloakException;
 import ua.nure.kryvko.hikeway.exception.RouteNotFoundException;
 import ua.nure.kryvko.hikeway.exception.UserAlreadyExistsException;
+import ua.nure.kryvko.hikeway.exception.SyncBatchTooLargeException;
+import ua.nure.kryvko.hikeway.model.response.ApiError;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<String> handleUserExists() {
+    public ResponseEntity<ApiError> handleUserExists() {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body("User already exists");
+                .body(ApiError.of("USER_ALREADY_EXISTS", "User already exists"));
     }
 
     @ExceptionHandler(InvalidUserDataException.class)
-    public ResponseEntity<String> handleInvalidUserData() {
+    public ResponseEntity<ApiError> handleInvalidUserData(InvalidUserDataException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body("Invalid user data");
+                .body(ApiError.of("INVALID_REQUEST", exception.getMessage()));
     }
 
     @ExceptionHandler(KeycloakException.class)
-    public ResponseEntity<String> handleKC() {
+    public ResponseEntity<ApiError> handleKC() {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body("Auth service error");
+                .body(ApiError.of("AUTH_SERVICE_ERROR", "Auth service error"));
     }
 
     @ExceptionHandler(RouteNotFoundException.class)
-    public ResponseEntity<String> handleRouteNotFound() {
+    public ResponseEntity<ApiError> handleRouteNotFound() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body("Route not found");
+                .body(ApiError.of("ROUTE_NOT_FOUND", "Route not found"));
     }
 
     @ExceptionHandler(InvalidRouteGeometryException.class)
-    public ResponseEntity<String> handleInvalidRouteGeometry(InvalidRouteGeometryException exception) {
+    public ResponseEntity<ApiError> handleInvalidRouteGeometry(InvalidRouteGeometryException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(exception.getMessage());
+                .body(ApiError.of("INVALID_GEOMETRY", exception.getMessage()));
+    }
+
+    @ExceptionHandler(SyncBatchTooLargeException.class)
+    public ResponseEntity<ApiError> handleSyncBatchTooLarge(SyncBatchTooLargeException exception) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiError.of("SYNC_BATCH_TOO_LARGE", exception.getMessage()));
     }
 }

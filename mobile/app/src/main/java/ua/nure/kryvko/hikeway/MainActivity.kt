@@ -45,6 +45,7 @@ import ua.nure.kryvko.hikeway.feature.routecreation.RouteCreationViewModel
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchScreen
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchViewModel
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
+import ua.nure.kryvko.hikeway.data.sync.SyncWorkScheduler
 
 class MainActivity : ComponentActivity() {
     private lateinit var routeSearchViewModel: RouteSearchViewModel
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        SyncWorkScheduler.schedule(applicationContext)
         requestLocationPermissionForProduction()
         val container = AppContainer(applicationContext)
         val authViewModel = ViewModelProvider(

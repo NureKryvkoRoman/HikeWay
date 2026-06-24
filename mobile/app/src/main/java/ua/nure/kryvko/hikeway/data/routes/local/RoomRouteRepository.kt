@@ -11,10 +11,12 @@ import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.RouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.matches
+import java.util.UUID
 
 class RoomRouteRepository(
     private val dao: RouteDao,
     private val currentUserProvider: CurrentUserProvider,
+    private val onLocalMutation: suspend () -> Unit = {},
 ) : RouteRepository, CustomRouteRepository {
     override suspend fun search(criteria: RouteSearchCriteria, origin: GeoPoint): List<Route> {
         val ownerUserId = currentUserProvider.currentUserId.value ?: return emptyList()
@@ -25,10 +27,15 @@ class RoomRouteRepository(
 
     override suspend fun save(route: Route): Long {
         return dao.insert(route.toEntity(currentUserProvider.requireCurrentUserId()))
+            .also { runCatching { onLocalMutation() } }
     }
 }
 
-fun Route.toEntity(ownerUserId: String) = RouteEntity(
+fun Route.toEntity(
+    ownerUserId: String,
+    clientId: String = UUID.randomUUID().toString(),
+    updatedAtEpochMillis: Long = System.currentTimeMillis(),
+) = RouteEntity(
     id = if (id < 0) 0 else id,
     ownerUserId = ownerUserId,
     name = name,
@@ -39,6 +46,8 @@ fun Route.toEntity(ownerUserId: String) = RouteEntity(
     elevationGainMeters = elevationGainMeters,
     terrain = terrain.name,
     geometryGeoJson = GeoJsonLineStringCodec.encode(geometry.points),
+    clientId = clientId,
+    updatedAtEpochMillis = updatedAtEpochMillis,
 )
 
 fun RouteEntity.toDomain() = Route(
