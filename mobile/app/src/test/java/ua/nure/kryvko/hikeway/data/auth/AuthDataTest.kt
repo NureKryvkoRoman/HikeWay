@@ -1,11 +1,18 @@
 package ua.nure.kryvko.hikeway.data.auth
 
+import com.google.gson.Gson
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import ua.nure.kryvko.hikeway.data.services.backend.BackendAuthService
+import ua.nure.kryvko.hikeway.data.services.backend.SignUpRequestDto
+import ua.nure.kryvko.hikeway.data.services.backend.toDto
+import ua.nure.kryvko.hikeway.data.services.keycloak.KeycloakService
+import ua.nure.kryvko.hikeway.data.services.keycloak.TokenResponseDto
+import ua.nure.kryvko.hikeway.data.services.network.TokenRefreshCoordinator
 import ua.nure.kryvko.hikeway.domain.auth.AuthSession
 import ua.nure.kryvko.hikeway.domain.auth.MutableCurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.auth.SignUpRequest
@@ -13,122 +20,133 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 
 class AuthDataTest {
     @Test
-    fun loginFormMatchesBackendScript() {
-        assertEquals(
-            mapOf(
-                "client_id" to "backend-test",
-                "grant_type" to "password",
-                "username" to "admin",
-                "password" to "admin",
-            ),
-            keycloakLoginForm(username = "admin", password = "admin"),
-        )
-    }
-
-    @Test
-    fun signupRequestSerializesToBackendJson() {
-        val json = SignUpRequest(
+    fun signupRequestMapsToBackendDto() {
+        val dto = SignUpRequest(
             email = "roman@example.com",
             password = "Password1",
             firstName = "Roman",
             lastName = "Kryvko",
             username = "roman",
-        ).toSignUpJson()
+        ).toDto()
 
-        assertEquals(
-            """{"email":"roman@example.com","password":"Password1","firstName":"Roman","lastName":"Kryvko","username":"roman"}""",
-            json,
-        )
+        assertEquals("roman@example.com", dto.email)
+        assertEquals("Roman", dto.firstName)
+        assertEquals("roman", dto.username)
     }
 
     @Test
     fun loginPersistsSessionWithExpiry() = runTest {
-        val store = FakeAuthSessionStore()
-        val timeProvider = FakeTimeProvider(now = 1_000L)
-        val currentUserProvider = MutableCurrentUserProvider()
-        val repository = DefaultAuthRepository(
-            api = FakeAuthApi(loginResponse = tokenResponse(userId = "user-123")),
-            sessionStore = store,
-            timeProvider = timeProvider,
-            currentUserProvider = currentUserProvider,
-        )
+        val fixture = AuthFixture()
 
-        val session = repository.login("roman", "Password1")
+        val session = fixture.repository.login("roman", "Password1")
 
         assertEquals("user-123", session.userId)
-        assertEquals("refresh", store.saved?.refreshToken)
-        assertEquals(61_000L, store.saved?.expiresAtEpochMillis)
-        assertEquals("user-123", currentUserProvider.currentUserId.value)
+        assertEquals("refresh", fixture.store.saved?.refreshToken)
+        assertEquals(61_000L, fixture.store.saved?.expiresAtEpochMillis)
+        assertEquals("user-123", fixture.currentUserProvider.currentUserId.value)
+        assertEquals("roman", fixture.keycloak.lastLoginUsername)
     }
 
     @Test
-    fun extractsSubjectFromJwt() {
-        assertEquals("keycloak-user-id", extractJwtSubject(jwt(userId = "keycloak-user-id")))
+    fun extractsSubjectFromJwtUsingGson() {
+        assertEquals(
+            "keycloak-user-id",
+            JwtDecoder(Gson()).subject(jwt(userId = "keycloak-user-id")),
+        )
     }
 
     @Test
-    fun expiredSessionRefreshesAndFailedRefreshClearsStore() = runTest {
-        val currentUserProvider = MutableCurrentUserProvider()
-        val store = FakeAuthSessionStore(
-            initial = AuthSession(
-                accessToken = "old",
-                refreshToken = "refresh",
-                expiresAtEpochMillis = 0,
-                username = "roman",
-                userId = "old-user",
-            )
-        )
-        val api = FakeAuthApi(refreshResponse = tokenResponse(userId = "new-user"))
-        val repository = DefaultAuthRepository(
-            api = api,
-            sessionStore = store,
-            timeProvider = FakeTimeProvider(now = 1_000L),
-            currentUserProvider = currentUserProvider,
+    fun expiredSessionRefreshesAndActivatesNewUser() = runTest {
+        val fixture = AuthFixture(
+            initialSession = expiredSession(),
+            refreshResponse = tokenResponse(userId = "new-user"),
         )
 
-        assertNull(repository.currentSession())
-        assertEquals("new-user", repository.refreshSession()?.userId)
-        assertEquals("new-user", currentUserProvider.currentUserId.value)
+        assertNull(fixture.repository.currentSession())
+        assertEquals("new-user", fixture.repository.refreshSession()?.userId)
+        assertEquals("new-user", fixture.currentUserProvider.currentUserId.value)
     }
 
     @Test
     fun failedRefreshClearsSession() = runTest {
-        val currentUserProvider = MutableCurrentUserProvider()
-        val store = FakeAuthSessionStore(
-            initial = AuthSession(
-                accessToken = "old",
-                refreshToken = "refresh",
-                expiresAtEpochMillis = 0,
-                username = "roman",
-                userId = "old-user",
-            )
-        )
-        val repository = DefaultAuthRepository(
-            api = FakeAuthApi(failRefresh = true),
-            sessionStore = store,
-            timeProvider = FakeTimeProvider(now = 1_000L),
-            currentUserProvider = currentUserProvider,
+        val fixture = AuthFixture(
+            initialSession = expiredSession(),
+            failRefresh = true,
         )
 
-        assertNull(repository.refreshSession())
-        assertEquals(true, store.didClear)
-        assertNull(currentUserProvider.currentUserId.value)
+        assertNull(fixture.repository.refreshSession())
+        assertEquals(true, fixture.store.didClear)
+        assertNull(fixture.currentUserProvider.currentUserId.value)
     }
 }
 
-private class FakeAuthApi(
-    private val loginResponse: TokenResponse = tokenResponse(),
-    private val refreshResponse: TokenResponse = tokenResponse(),
-    private val failRefresh: Boolean = false,
-) : AuthApi {
-    override suspend fun login(username: String, password: String): TokenResponse = loginResponse
+private class AuthFixture(
+    initialSession: AuthSession? = null,
+    refreshResponse: TokenResponseDto = tokenResponse(),
+    failRefresh: Boolean = false,
+) {
+    val store = FakeAuthSessionStore(initialSession)
+    val currentUserProvider = MutableCurrentUserProvider()
+    val keycloak = FakeKeycloakService(
+        loginResponse = tokenResponse(),
+        refreshResponse = refreshResponse,
+        failRefresh = failRefresh,
+    )
+    private val backend = FakeBackendAuthService()
+    private val gson = Gson()
+    private val timeProvider = FakeTimeProvider(now = 1_000L)
+    private val sessionManager = AuthSessionManager(store, timeProvider, currentUserProvider)
+    private val sessionFactory = AuthSessionFactory(timeProvider, JwtDecoder(gson))
+    private val refreshCoordinator = TokenRefreshCoordinator(
+        keycloakService = keycloak,
+        realm = "hikeway-keycloak",
+        clientId = "backend-test",
+        sessionManager = sessionManager,
+        sessionFactory = sessionFactory,
+    )
+    val repository = DefaultAuthRepository(
+        keycloakService = keycloak,
+        backendAuthService = backend,
+        keycloakRealm = "hikeway-keycloak",
+        keycloakClientId = "backend-test",
+        sessionManager = sessionManager,
+        sessionFactory = sessionFactory,
+        refreshCoordinator = refreshCoordinator,
+        gson = gson,
+    )
+}
 
-    override suspend fun refresh(refreshToken: String): TokenResponse {
+private class FakeKeycloakService(
+    private val loginResponse: TokenResponseDto,
+    private val refreshResponse: TokenResponseDto,
+    private val failRefresh: Boolean,
+) : KeycloakService {
+    var lastLoginUsername: String? = null
+
+    override suspend fun login(
+        realm: String,
+        clientId: String,
+        grantType: String,
+        username: String,
+        password: String,
+    ): TokenResponseDto {
+        lastLoginUsername = username
+        return loginResponse
+    }
+
+    override suspend fun refresh(
+        realm: String,
+        clientId: String,
+        grantType: String,
+        refreshToken: String,
+    ): TokenResponseDto {
         if (failRefresh) error("refresh failed")
         return refreshResponse
     }
+}
 
-    override suspend fun signUp(request: SignUpRequest) = Unit
+private class FakeBackendAuthService : BackendAuthService {
+    override suspend fun signUp(request: SignUpRequestDto) = Unit
 }
 
 private class FakeAuthSessionStore(initial: AuthSession? = null) : AuthSessionStore {
@@ -151,7 +169,15 @@ private class FakeTimeProvider(private val now: Long) : TimeProvider {
     override fun currentTimeMillis(): Long = now
 }
 
-private fun tokenResponse(userId: String = "user-123") = TokenResponse(
+private fun expiredSession() = AuthSession(
+    accessToken = "old",
+    refreshToken = "refresh",
+    expiresAtEpochMillis = 0,
+    username = "roman",
+    userId = "old-user",
+)
+
+private fun tokenResponse(userId: String = "user-123") = TokenResponseDto(
     accessToken = jwt(userId),
     refreshToken = "refresh",
     expiresInSeconds = 60,

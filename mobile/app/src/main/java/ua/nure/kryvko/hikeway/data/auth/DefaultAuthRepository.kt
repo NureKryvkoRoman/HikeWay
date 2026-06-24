@@ -1,62 +1,57 @@
 package ua.nure.kryvko.hikeway.data.auth
 
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
+import ua.nure.kryvko.hikeway.data.services.backend.BackendAuthService
+import ua.nure.kryvko.hikeway.data.services.backend.toDto
+import ua.nure.kryvko.hikeway.data.services.keycloak.KeycloakService
+import ua.nure.kryvko.hikeway.data.services.network.TokenRefreshCoordinator
+import ua.nure.kryvko.hikeway.data.services.network.toApiException
 import ua.nure.kryvko.hikeway.domain.auth.AuthRepository
 import ua.nure.kryvko.hikeway.domain.auth.AuthSession
-import ua.nure.kryvko.hikeway.domain.auth.MutableCurrentUserProvider
 import ua.nure.kryvko.hikeway.domain.auth.SignUpRequest
-import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 
 class DefaultAuthRepository(
-    private val api: AuthApi,
-    private val sessionStore: AuthSessionStore,
-    private val timeProvider: TimeProvider,
-    private val currentUserProvider: MutableCurrentUserProvider,
+    private val keycloakService: KeycloakService,
+    private val backendAuthService: BackendAuthService,
+    private val keycloakRealm: String,
+    private val keycloakClientId: String,
+    private val sessionManager: AuthSessionManager,
+    private val sessionFactory: AuthSessionFactory,
+    private val refreshCoordinator: TokenRefreshCoordinator,
+    private val gson: Gson,
 ) : AuthRepository {
+    override fun observeSession(): Flow<AuthSession?> = sessionManager.activeSession
+
     override suspend fun currentSession(): AuthSession? {
-        val session = sessionStore.get()?.takeIf { it.expiresAtEpochMillis > timeProvider.currentTimeMillis() }
-        currentUserProvider.setCurrentUserId(session?.userId)
-        return session
+        return sessionManager.restoreValidSession()
     }
 
     override suspend fun login(username: String, password: String): AuthSession {
-        val response = api.login(username = username, password = password)
-        return response.toSession(username).also(::saveSession)
-    }
-
-    override suspend fun signUp(request: SignUpRequest) {
-        api.signUp(request)
-    }
-
-    override suspend fun refreshSession(): AuthSession? {
-        val current = sessionStore.get() ?: return null
-        val refreshToken = current.refreshToken ?: return null
         return runCatching {
-            api.refresh(refreshToken).toSession(current.username).also(::saveSession)
+            keycloakService.login(
+                realm = keycloakRealm,
+                clientId = keycloakClientId,
+                username = username,
+                password = password,
+            )
+        }.map { response ->
+            sessionFactory.create(response, username).also(sessionManager::save)
         }.getOrElse {
-            sessionStore.clear()
-            currentUserProvider.setCurrentUserId(null)
-            null
+            throw it.toApiException(gson, "Could not log in")
         }
     }
 
+    override suspend fun signUp(request: SignUpRequest) {
+        runCatching { backendAuthService.signUp(request.toDto()) }
+            .getOrElse { throw it.toApiException(gson, "Could not sign up") }
+    }
+
+    override suspend fun refreshSession(): AuthSession? {
+        return refreshCoordinator.forceRefresh()
+    }
+
     override suspend fun logout() {
-        sessionStore.clear()
-        currentUserProvider.setCurrentUserId(null)
-    }
-
-    private fun saveSession(session: AuthSession) {
-        sessionStore.save(session)
-        currentUserProvider.setCurrentUserId(session.userId)
-    }
-
-    private fun TokenResponse.toSession(username: String): AuthSession {
-        val expiresInMillis = expiresInSeconds.coerceAtLeast(0L) * 1_000L
-        return AuthSession(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            expiresAtEpochMillis = timeProvider.currentTimeMillis() + expiresInMillis,
-            username = username,
-            userId = extractJwtSubject(accessToken),
-        )
+        sessionManager.clear()
     }
 }

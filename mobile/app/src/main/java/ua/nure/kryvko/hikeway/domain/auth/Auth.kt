@@ -1,6 +1,7 @@
 package ua.nure.kryvko.hikeway.domain.auth
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -21,6 +22,7 @@ data class SignUpRequest(
 )
 
 interface AuthRepository {
+    fun observeSession(): Flow<AuthSession?>
     suspend fun currentSession(): AuthSession?
     suspend fun login(username: String, password: String): AuthSession
     suspend fun signUp(request: SignUpRequest)
@@ -75,4 +77,10 @@ class LogoutUseCase(
     suspend operator fun invoke() {
         repository.logout()
     }
+}
+
+class ObserveAuthSessionUseCase(
+    private val repository: AuthRepository,
+) {
+    operator fun invoke(): Flow<AuthSession?> = repository.observeSession()
 }

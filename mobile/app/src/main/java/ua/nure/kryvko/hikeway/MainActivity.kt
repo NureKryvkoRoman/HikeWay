@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
                 signUp = container.signUp,
                 restoreSession = container.restoreSession,
                 logout = container.logout,
+                observeAuthSession = container.observeAuthSession,
             ),
         )[AuthViewModel::class.java]
         routeSearchViewModel = ViewModelProvider(

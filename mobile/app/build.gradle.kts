@@ -24,6 +24,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BACKEND_BASE_URL", "\"http://10.0.2.2:8080\"")
         buildConfigField("String", "KEYCLOAK_BASE_URL", "\"http://10.0.2.2:8081\"")
+        buildConfigField("String", "KEYCLOAK_REALM", "\"hikeway-keycloak\"")
+        buildConfigField("String", "KEYCLOAK_CLIENT_ID", "\"backend-test\"")
     }
 
     flavorDimensions += "environment"
@@ -77,6 +79,10 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
     implementation(libs.androidx.room.runtime)
+    implementation(libs.retrofit.core)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
     implementation(libs.mapLibre)
     /** Use OpenGl instead of Vulkan
      * https://maplibre.org/maplibre-compose/getting-started/#revert-to-opengl-on-android-optional
@@ -88,6 +94,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

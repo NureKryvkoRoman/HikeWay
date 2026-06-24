@@ -5,12 +5,15 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 import ua.nure.kryvko.hikeway.domain.auth.AuthRepository
 import ua.nure.kryvko.hikeway.domain.auth.AuthSession
 import ua.nure.kryvko.hikeway.domain.auth.LoginUseCase
 import ua.nure.kryvko.hikeway.domain.auth.LogoutUseCase
+import ua.nure.kryvko.hikeway.domain.auth.ObserveAuthSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpRequest
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
@@ -59,6 +62,7 @@ class AuthScreenTest {
             signUp = SignUpUseCase(repository),
             restoreSession = RestoreSessionUseCase(repository),
             logout = LogoutUseCase(repository),
+            observeAuthSession = ObserveAuthSessionUseCase(repository),
         )
         composeRule.setContent {
             HikeWayTheme {
@@ -69,6 +73,10 @@ class AuthScreenTest {
 }
 
 private class FakeAuthRepository : AuthRepository {
+    private val session = MutableStateFlow<AuthSession?>(null)
+
+    override fun observeSession(): Flow<AuthSession?> = session
+
     override suspend fun currentSession(): AuthSession? = null
 
     override suspend fun login(username: String, password: String): AuthSession {
@@ -78,12 +86,14 @@ private class FakeAuthRepository : AuthRepository {
             expiresAtEpochMillis = Long.MAX_VALUE,
             username = username,
             userId = "user-$username",
-        )
+        ).also { session.value = it }
     }
 
     override suspend fun signUp(request: SignUpRequest) = Unit
 
     override suspend fun refreshSession(): AuthSession? = null
 
-    override suspend fun logout() = Unit
+    override suspend fun logout() {
+        session.value = null
+    }
 }

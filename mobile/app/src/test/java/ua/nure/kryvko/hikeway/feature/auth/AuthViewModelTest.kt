@@ -2,6 +2,8 @@ package ua.nure.kryvko.hikeway.feature.auth
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -16,6 +18,7 @@ import ua.nure.kryvko.hikeway.domain.auth.AuthRepository
 import ua.nure.kryvko.hikeway.domain.auth.AuthSession
 import ua.nure.kryvko.hikeway.domain.auth.LoginUseCase
 import ua.nure.kryvko.hikeway.domain.auth.LogoutUseCase
+import ua.nure.kryvko.hikeway.domain.auth.ObserveAuthSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpRequest
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
@@ -116,27 +119,46 @@ class AuthViewModelTest {
         assertEquals(true, repository.didLogout)
     }
 
+    @Test
+    fun backgroundSessionInvalidationReturnsToLogin() = runTest(dispatcher) {
+        repository.restoredSession = session("roman")
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        repository.invalidateSession()
+        advanceUntilIdle()
+
+        assertEquals(AuthStatus.UNAUTHENTICATED, viewModel.uiState.value.status)
+    }
+
     private fun viewModel() = AuthViewModel(
         login = LoginUseCase(repository),
         signUp = SignUpUseCase(repository),
         restoreSession = RestoreSessionUseCase(repository),
         logout = LogoutUseCase(repository),
+        observeAuthSession = ObserveAuthSessionUseCase(repository),
     )
 }
 
 private class FakeAuthRepository : AuthRepository {
+    private val sessionFlow = MutableStateFlow<AuthSession?>(null)
     val logins = mutableListOf<String>()
     val signups = mutableListOf<SignUpRequest>()
     var failLogin = false
     var didLogout = false
     var restoredSession: AuthSession? = null
 
-    override suspend fun currentSession(): AuthSession? = restoredSession
+    override fun observeSession(): Flow<AuthSession?> = sessionFlow
+
+    override suspend fun currentSession(): AuthSession? {
+        sessionFlow.value = restoredSession
+        return restoredSession
+    }
 
     override suspend fun login(username: String, password: String): AuthSession {
         if (failLogin) error("Invalid credentials")
         logins += username
-        return session(username)
+        return session(username).also { sessionFlow.value = it }
     }
 
     override suspend fun signUp(request: SignUpRequest) {
@@ -148,6 +170,12 @@ private class FakeAuthRepository : AuthRepository {
     override suspend fun logout() {
         didLogout = true
         restoredSession = null
+        sessionFlow.value = null
+    }
+
+    fun invalidateSession() {
+        restoredSession = null
+        sessionFlow.value = null
     }
 }
 

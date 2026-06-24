@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.nure.kryvko.hikeway.domain.auth.LoginUseCase
 import ua.nure.kryvko.hikeway.domain.auth.LogoutUseCase
+import ua.nure.kryvko.hikeway.domain.auth.ObserveAuthSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpRequest
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
@@ -44,12 +45,14 @@ class AuthViewModel(
     private val signUp: SignUpUseCase,
     private val restoreSession: RestoreSessionUseCase,
     private val logout: LogoutUseCase,
+    private val observeAuthSession: ObserveAuthSessionUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
         checkSession()
+        observeSession()
     }
 
     fun showSignUp() {
@@ -182,12 +185,35 @@ class AuthViewModel(
         }
     }
 
+    private fun observeSession() {
+        viewModelScope.launch {
+            observeAuthSession().collect { session ->
+                _uiState.update { state ->
+                    if (state.status == AuthStatus.CHECKING) {
+                        state
+                    } else {
+                        state.copy(
+                            status = if (session != null) {
+                                AuthStatus.AUTHENTICATED
+                            } else {
+                                AuthStatus.UNAUTHENTICATED
+                            },
+                            username = session?.username ?: state.username,
+                            isLoading = false,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         fun factory(
             login: LoginUseCase,
             signUp: SignUpUseCase,
             restoreSession: RestoreSessionUseCase,
             logout: LogoutUseCase,
+            observeAuthSession: ObserveAuthSessionUseCase,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -196,6 +222,7 @@ class AuthViewModel(
                     signUp = signUp,
                     restoreSession = restoreSession,
                     logout = logout,
+                    observeAuthSession = observeAuthSession,
                 ) as T
             }
         }
