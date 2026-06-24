@@ -4,6 +4,7 @@ import ua.nure.kryvko.hikeway.model.Difficulty;
 import ua.nure.kryvko.hikeway.model.geojson.GeoJsonLineString;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Full route data, including GeoJson geometry and route metadata.
@@ -18,6 +19,7 @@ public record FullRouteResponse(
         int elevationGain,
         Instant createdAt,
         String createdBy,
-        GeoJsonLineString geometry
+        GeoJsonLineString geometry,
+        List<PoiResponses.Summary> pointsOfInterest
 ) {
 }

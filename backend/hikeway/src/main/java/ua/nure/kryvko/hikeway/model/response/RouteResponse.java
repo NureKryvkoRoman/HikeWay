@@ -3,6 +3,7 @@ package ua.nure.kryvko.hikeway.model.response;
 import ua.nure.kryvko.hikeway.model.Difficulty;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * General-purpose Route DTO, includes only route metadata
@@ -16,6 +17,7 @@ public record RouteResponse(
         Difficulty difficulty,
         int elevationGain,
         Instant createdAt,
-        String createdBy
+        String createdBy,
+        List<PoiResponses.Summary> pointsOfInterest
 ) {
 }

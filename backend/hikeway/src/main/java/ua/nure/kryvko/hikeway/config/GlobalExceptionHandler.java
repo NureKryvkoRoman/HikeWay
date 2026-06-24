@@ -10,6 +10,10 @@ import ua.nure.kryvko.hikeway.exception.KeycloakException;
 import ua.nure.kryvko.hikeway.exception.RouteNotFoundException;
 import ua.nure.kryvko.hikeway.exception.UserAlreadyExistsException;
 import ua.nure.kryvko.hikeway.exception.SyncBatchTooLargeException;
+import ua.nure.kryvko.hikeway.exception.ForbiddenOperationException;
+import ua.nure.kryvko.hikeway.exception.InvalidPoiDataException;
+import ua.nure.kryvko.hikeway.exception.PoiContentNotFoundException;
+import ua.nure.kryvko.hikeway.exception.PoiNotFoundException;
 import ua.nure.kryvko.hikeway.model.response.ApiError;
 
 @RestControllerAdvice
@@ -49,5 +53,30 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleSyncBatchTooLarge(SyncBatchTooLargeException exception) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(ApiError.of("SYNC_BATCH_TOO_LARGE", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PoiNotFoundException.class)
+    public ResponseEntity<ApiError> handlePoiNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of("POI_NOT_FOUND", "Point of interest not found"));
+    }
+
+    @ExceptionHandler(PoiContentNotFoundException.class)
+    public ResponseEntity<ApiError> handlePoiContentNotFound(PoiContentNotFoundException exception) {
+        String code = exception.getResource().toUpperCase() + "_NOT_FOUND";
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of(code, exception.getMessage()));
+    }
+
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ResponseEntity<ApiError> handleForbidden() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiError.of("FORBIDDEN", "You do not own this resource"));
+    }
+
+    @ExceptionHandler(InvalidPoiDataException.class)
+    public ResponseEntity<ApiError> handleInvalidPoiData(InvalidPoiDataException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiError.of(exception.getCode(), exception.getMessage()));
     }
 }

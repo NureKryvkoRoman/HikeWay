@@ -31,6 +31,7 @@ class DataSyncServiceTest {
     private RouteGeometryRepository geometryRepository;
     private CompletedHikeRepository hikeRepository;
     private SyncChangeRepository changeRepository;
+    private RoutePoiService routePoiService;
     private DataSyncService service;
 
     @BeforeEach
@@ -39,12 +40,14 @@ class DataSyncServiceTest {
         geometryRepository = mock(RouteGeometryRepository.class);
         hikeRepository = mock(CompletedHikeRepository.class);
         changeRepository = mock(SyncChangeRepository.class);
+        routePoiService = mock(RoutePoiService.class);
         service = new DataSyncService(
                 routeRepository,
                 geometryRepository,
                 hikeRepository,
                 changeRepository,
-                new GeoJsonGeometryMapper()
+                new GeoJsonGeometryMapper(),
+                routePoiService
         );
         Jwt jwt = new Jwt(
                 "token",
@@ -98,6 +101,7 @@ class DataSyncServiceTest {
         assertEquals(1L, response.accepted().getFirst().version());
         verify(routeRepository).save(any(Route.class));
         verify(geometryRepository).save(any(RouteGeometry.class));
+        verify(routePoiService).replace(any(Route.class), eq(List.of()));
         verify(changeRepository).save(any(SyncChange.class));
     }
 
@@ -151,7 +155,8 @@ class DataSyncServiceTest {
                 new GeoJsonLineString(
                         "LineString",
                         List.of(List.of(24.0, 49.0), List.of(24.1, 49.1))
-                )
+                ),
+                List.of()
         );
     }
 }

@@ -35,7 +35,8 @@ public record SyncRequest(
             Difficulty difficulty,
             int elevationGainMeters,
             Terrain terrain,
-            GeoJsonLineString geometry
+            GeoJsonLineString geometry,
+            List<Long> poiIds
     ) {
     }
 

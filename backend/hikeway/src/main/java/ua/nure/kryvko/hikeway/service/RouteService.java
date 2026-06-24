@@ -31,12 +31,18 @@ public class RouteService {
     private static final String LINE_STRING_TYPE = "LineString";
     private final RouteRepository routeRepository;
     private final RouteGeometryRepository routeGeometryRepository;
+    private final RoutePoiService routePoiService;
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     @Autowired
-    public RouteService(RouteRepository routeRepository, RouteGeometryRepository routeGeometryRepository) {
+    public RouteService(
+            RouteRepository routeRepository,
+            RouteGeometryRepository routeGeometryRepository,
+            RoutePoiService routePoiService
+    ) {
         this.routeRepository = routeRepository;
         this.routeGeometryRepository = routeGeometryRepository;
+        this.routePoiService = routePoiService;
     }
 
     public FullRouteResponse createRoute(CreateRouteRequest request) {
@@ -62,6 +68,7 @@ public class RouteService {
             geometry.setLine(createLineString(request.geometry()));
             geometry = routeGeometryRepository.save(geometry);
         }
+        routePoiService.replace(route, request.poiIds());
 
         return toFullRouteResponse(route, geometry);
     }
@@ -104,12 +111,16 @@ public class RouteService {
             geometry.setLine(createLineString(request.geometry()));
             geometry = routeGeometryRepository.save(geometry);
         }
+        if (request.poiIds() != null) {
+            routePoiService.replace(route, request.poiIds());
+        }
 
         return toFullRouteResponse(route, geometry);
     }
 
     public void deleteRoute(Long id) {
         Route route = getRouteEntity(id);
+        routePoiService.deleteForRoute(id);
         routeGeometryRepository.findByRoute(route).ifPresent(routeGeometryRepository::delete);
         routeRepository.delete(route);
     }
@@ -130,7 +141,8 @@ public class RouteService {
                 route.getElevationGain(),
                 route.getCreatedAt(),
                 route.getCreatedBy(),
-                geometry == null ? null : toGeoJson(geometry.getLine())
+                geometry == null ? null : toGeoJson(geometry.getLine()),
+                routePoiService.summaries(route.getId())
         );
     }
 
@@ -144,7 +156,8 @@ public class RouteService {
                 route.getDifficulty(),
                 route.getElevationGain(),
                 route.getCreatedAt(),
-                route.getCreatedBy()
+                route.getCreatedBy(),
+                routePoiService.summaries(route.getId())
         );
     }
 

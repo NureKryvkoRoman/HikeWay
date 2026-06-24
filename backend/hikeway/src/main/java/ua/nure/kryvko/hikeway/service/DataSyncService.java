@@ -30,19 +30,22 @@ public class DataSyncService {
     private final CompletedHikeRepository hikeRepository;
     private final SyncChangeRepository changeRepository;
     private final GeoJsonGeometryMapper geometryMapper;
+    private final RoutePoiService routePoiService;
 
     public DataSyncService(
             RouteRepository routeRepository,
             RouteGeometryRepository routeGeometryRepository,
             CompletedHikeRepository hikeRepository,
             SyncChangeRepository changeRepository,
-            GeoJsonGeometryMapper geometryMapper
+            GeoJsonGeometryMapper geometryMapper,
+            RoutePoiService routePoiService
     ) {
         this.routeRepository = routeRepository;
         this.routeGeometryRepository = routeGeometryRepository;
         this.hikeRepository = hikeRepository;
         this.changeRepository = changeRepository;
         this.geometryMapper = geometryMapper;
+        this.routePoiService = routePoiService;
     }
 
     @Transactional
@@ -134,6 +137,11 @@ public class DataSyncService {
         route = routeRepository.save(route);
         if (!route.isDeleted()) {
             saveRouteGeometry(route, mutation.payload());
+            if (existing.isEmpty() || mutation.payload().poiIds() != null) {
+                routePoiService.replace(route, mutation.payload().poiIds());
+            }
+        } else {
+            routePoiService.deleteForRoute(route.getId());
         }
         recordChange(ownerId, SyncResourceType.ROUTE, route.getClientId(), route.getSyncVersion(), route.isDeleted());
         accepted.add(new SyncResponse.AcceptedMutation(
@@ -277,7 +285,9 @@ public class DataSyncService {
                 route.getElevationGain() == payload.elevationGainMeters() &&
                 route.getTerrain() == payload.terrain() &&
                 geometry != null &&
-                Objects.equals(geometryMapper.toGeoJson(geometry.getLine()), payload.geometry());
+                Objects.equals(geometryMapper.toGeoJson(geometry.getLine()), payload.geometry()) &&
+                (payload.poiIds() == null ||
+                        Objects.equals(routePoiService.ids(route.getId()), normalizedPoiIds(payload.poiIds())));
     }
 
     private void saveRouteGeometry(Route route, SyncRequest.RoutePayload payload) {
@@ -341,6 +351,7 @@ public class DataSyncService {
                 route.isDeleted() ? null : route.getElevationGain(),
                 route.isDeleted() ? null : route.getTerrain(),
                 route.isDeleted() || geometry == null ? null : geometryMapper.toGeoJson(geometry.getLine()),
+                route.isDeleted() ? List.of() : routePoiService.summaries(route.getId()),
                 route.getVisibility(),
                 route.getCreatedAt(),
                 route.getUpdatedAt(),
@@ -375,6 +386,10 @@ public class DataSyncService {
                 (mutation.operation() == SyncRequest.Operation.UPSERT && mutation.payload() == null)) {
             throw new InvalidUserDataException("Invalid sync mutation");
         }
+    }
+
+    private List<Long> normalizedPoiIds(List<Long> poiIds) {
+        return poiIds == null ? List.of() : poiIds;
     }
 
     private void recordChange(

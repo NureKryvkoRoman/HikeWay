@@ -49,6 +49,7 @@ public record SyncResponse(
             Integer elevationGainMeters,
             Terrain terrain,
             GeoJsonLineString geometry,
+            List<PoiResponses.Summary> pointsOfInterest,
             RouteVisibility visibility,
             Instant createdAt,
             Instant updatedAt,
