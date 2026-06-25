@@ -31,4 +31,7 @@ public final class PoiRequests {
 
     public record PhotoFinalize(Long photoId, String caption) {
     }
+
+    public record PhotoUpdate(String caption) {
+    }
 }

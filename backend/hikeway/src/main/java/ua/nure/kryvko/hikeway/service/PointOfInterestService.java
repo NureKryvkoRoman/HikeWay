@@ -26,6 +26,7 @@ import java.util.UUID;
 @Service
 public class PointOfInterestService {
     private static final int MAX_PAGE_SIZE = 100;
+    private static final double MAX_NEARBY_RADIUS_METERS = 100_000;
     private static final long MAX_PHOTO_BYTES = 10L * 1024 * 1024;
     private static final Set<String> PHOTO_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
@@ -87,6 +88,38 @@ public class PointOfInterestService {
                 )
                 : poiRepository.findByDeletedFalse(pageable);
         return PageResponse.from(pois, pois.stream().map(this::toSummary).toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<PoiResponses.NearbySummary> nearby(
+            Double longitude,
+            Double latitude,
+            Double radiusMeters,
+            int page,
+            int size
+    ) {
+        double validLongitude = requireLongitude(longitude);
+        double validLatitude = requireLatitude(latitude);
+        double validRadius = requireNearbyRadius(radiusMeters);
+        var pois = poiRepository.findNearby(
+                validLongitude,
+                validLatitude,
+                validRadius,
+                pageRequest(page, size, Sort.unsorted())
+        );
+        String userId = currentUser.id();
+        return PageResponse.from(pois, pois.stream()
+                .map(poi -> new PoiResponses.NearbySummary(
+                        poi.getId(),
+                        poi.getName(),
+                        poi.getDescription(),
+                        poi.getLongitude(),
+                        poi.getLatitude(),
+                        poi.getOwnerDisplayName(),
+                        poi.getOwnerId().equals(userId),
+                        poi.getDistanceMeters()
+                ))
+                .toList());
     }
 
     @Transactional(readOnly = true)
@@ -289,6 +322,19 @@ public class PointOfInterestService {
     }
 
     @Transactional
+    public PoiResponses.Photo updatePhoto(long poiId, long photoId, PoiRequests.PhotoUpdate request) {
+        activePoi(poiId);
+        PoiPhoto photo = photoRepository.findByIdAndPoiId(photoId, poiId)
+                .orElseThrow(() -> new PoiContentNotFoundException("Photo"));
+        requireOwner(photo.getContributorId());
+        if (photo.getStatus() != PoiPhotoStatus.READY) {
+            throw invalidUpload("Only finalized photos can be updated");
+        }
+        photo.setCaption(optionalText(request.caption(), 500));
+        return toPhoto(photoRepository.save(photo), currentUser.id());
+    }
+
+    @Transactional
     public void deletePhoto(long poiId, long photoId) {
         activePoi(poiId);
         PoiPhoto photo = photoRepository.findByIdAndPoiId(photoId, poiId)
@@ -386,7 +432,7 @@ public class PointOfInterestService {
     }
 
     private void requireOwner(String ownerId) {
-        if (!ownerId.equals(currentUser.id())) {
+        if (!ownerId.equals(currentUser.id()) && !currentUser.isAdmin()) {
             throw new ForbiddenOperationException();
         }
     }
@@ -416,6 +462,13 @@ public class PointOfInterestService {
     private double requireLatitude(Double value) {
         if (value == null || !Double.isFinite(value) || value < -90 || value > 90) {
             throw invalidLocation("Latitude must be between -90 and 90");
+        }
+        return value;
+    }
+
+    private double requireNearbyRadius(Double value) {
+        if (value == null || !Double.isFinite(value) || value <= 0 || value > MAX_NEARBY_RADIUS_METERS) {
+            throw invalidLocation("Radius must be greater than 0 and at most 100000 meters");
         }
         return value;
     }

@@ -39,4 +39,45 @@ public interface PointOfInterestRepository extends JpaRepository<PointOfInterest
             @Param("maxLatitude") double maxLatitude,
             Pageable pageable
     );
+
+    @Query(
+            value = """
+                    SELECT p.id AS id,
+                           p.name AS name,
+                           p.description AS description,
+                           ST_X(p.location) AS longitude,
+                           ST_Y(p.location) AS latitude,
+                           p.owner_id AS "ownerId",
+                           p.owner_display_name AS "ownerDisplayName",
+                           ST_Distance(
+                               CAST(p.location AS geography),
+                               CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography)
+                           ) AS "distanceMeters"
+                    FROM point_of_interest p
+                    WHERE p.deleted = false
+                      AND ST_DWithin(
+                          CAST(p.location AS geography),
+                          CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography),
+                          :radiusMeters
+                      )
+                    ORDER BY "distanceMeters" ASC, p.id ASC
+                    """,
+            countQuery = """
+                    SELECT count(*)
+                    FROM point_of_interest p
+                    WHERE p.deleted = false
+                      AND ST_DWithin(
+                          CAST(p.location AS geography),
+                          CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography),
+                          :radiusMeters
+                      )
+                    """,
+            nativeQuery = true
+    )
+    Page<NearbyPoiProjection> findNearby(
+            @Param("longitude") double longitude,
+            @Param("latitude") double latitude,
+            @Param("radiusMeters") double radiusMeters,
+            Pageable pageable
+    );
 }

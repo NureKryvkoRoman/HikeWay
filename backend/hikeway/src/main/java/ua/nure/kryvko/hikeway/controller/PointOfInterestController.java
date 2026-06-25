@@ -28,6 +28,17 @@ public class PointOfInterestController {
         return service.list(page, size, minLongitude, minLatitude, maxLongitude, maxLatitude);
     }
 
+    @GetMapping("/nearby")
+    public PageResponse<PoiResponses.NearbySummary> nearby(
+            @RequestParam Double longitude,
+            @RequestParam Double latitude,
+            @RequestParam Double radiusMeters,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
+    ) {
+        return service.nearby(longitude, latitude, radiusMeters, page, size);
+    }
+
     @GetMapping("/{id}")
     public PoiResponses.Detail get(@PathVariable long id) {
         return service.get(id);
@@ -105,6 +116,15 @@ public class PointOfInterestController {
             @RequestBody PoiRequests.PhotoFinalize request
     ) {
         return ResponseEntity.status(201).body(service.finalizePhoto(id, request));
+    }
+
+    @PatchMapping("/{id}/photos/{photoId}")
+    public PoiResponses.Photo updatePhoto(
+            @PathVariable long id,
+            @PathVariable long photoId,
+            @RequestBody PoiRequests.PhotoUpdate request
+    ) {
+        return service.updatePhoto(id, photoId, request);
     }
 
     @DeleteMapping("/{id}/photos/{photoId}")

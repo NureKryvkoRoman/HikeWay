@@ -23,6 +23,18 @@ public final class PoiResponses {
     ) {
     }
 
+    public record NearbySummary(
+            long id,
+            String name,
+            String description,
+            double longitude,
+            double latitude,
+            String ownerDisplayName,
+            boolean ownedByCurrentUser,
+            double distanceMeters
+    ) {
+    }
+
     public record Detail(
             long id,
             String name,
