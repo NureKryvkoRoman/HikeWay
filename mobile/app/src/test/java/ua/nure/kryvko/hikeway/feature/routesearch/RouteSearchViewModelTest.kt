@@ -19,6 +19,7 @@ import ua.nure.kryvko.hikeway.core.location.LocationProvider
 import ua.nure.kryvko.hikeway.core.location.StubLocationProvider
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PoiRating
 import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
@@ -27,9 +28,20 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
+import ua.nure.kryvko.hikeway.domain.pois.AddPoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.DeletePoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.DeletePoiPhotoUseCase
+import ua.nure.kryvko.hikeway.domain.pois.DeletePointOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.GetNearbyPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.GetPointOfInterestDetailUseCase
 import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
 import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.RemovePointOfInterestRatingUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UpdatePoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UpdatePoiPhotoUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UpdatePointOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UploadPoiPhotoUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteProgress
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
@@ -344,7 +356,18 @@ class RouteSearchViewModelTest {
             timeProvider = timeProvider,
             activeTimer = TestActiveTimer(),
             getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository),
+            getNearbyPointsOfInterest = GetNearbyPointsOfInterestUseCase(pointOfInterestRepository),
+            getPointOfInterestDetail = GetPointOfInterestDetailUseCase(pointOfInterestRepository),
+            updatePointOfInterest = UpdatePointOfInterestUseCase(pointOfInterestRepository),
+            deletePointOfInterest = DeletePointOfInterestUseCase(pointOfInterestRepository),
             ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository),
+            removePointOfInterestRating = RemovePointOfInterestRatingUseCase(pointOfInterestRepository),
+            addPoiCommentUseCase = AddPoiCommentUseCase(pointOfInterestRepository),
+            updatePoiCommentUseCase = UpdatePoiCommentUseCase(pointOfInterestRepository),
+            deletePoiCommentUseCase = DeletePoiCommentUseCase(pointOfInterestRepository),
+            uploadPoiPhotoUseCase = UploadPoiPhotoUseCase(pointOfInterestRepository),
+            updatePoiPhotoUseCase = UpdatePoiPhotoUseCase(pointOfInterestRepository),
+            deletePoiPhotoUseCase = DeletePoiPhotoUseCase(pointOfInterestRepository),
         )
     }
 }
@@ -399,7 +422,8 @@ private class FakePointOfInterestRepository : PointOfInterestRepository {
         )
     }
 
-    override suspend fun submitRating(poiId: Long, rating: Int) {
+    override suspend fun submitRating(poiId: Long, rating: Int): PoiRating {
         submittedRatings += poiId to rating
+        return PoiRating(rating.toDouble(), 1, rating)
     }
 }

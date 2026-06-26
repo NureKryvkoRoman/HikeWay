@@ -36,6 +36,7 @@ data class AuthUiState(
     val lastName: String = "",
     val signUpUsername: String = "",
     val signUpPassword: String = "",
+    val isAdmin: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -180,6 +181,7 @@ class AuthViewModel(
                 it.copy(
                     status = if (session != null) AuthStatus.AUTHENTICATED else AuthStatus.UNAUTHENTICATED,
                     username = session?.username.orEmpty(),
+                    isAdmin = session?.isAdmin == true,
                 )
             }
         }
@@ -199,6 +201,7 @@ class AuthViewModel(
                                 AuthStatus.UNAUTHENTICATED
                             },
                             username = session?.username ?: state.username,
+                            isAdmin = session?.isAdmin == true,
                             isLoading = false,
                         )
                     }
@@ -228,6 +231,9 @@ class AuthViewModel(
         }
     }
 }
+
+private val ua.nure.kryvko.hikeway.domain.auth.AuthSession.isAdmin: Boolean
+    get() = roles.any { it == "ROLE_ADMIN" || it == "ADMIN" || it == "admin" }
 
 fun validateLogin(username: String, password: String): String? {
     return when {

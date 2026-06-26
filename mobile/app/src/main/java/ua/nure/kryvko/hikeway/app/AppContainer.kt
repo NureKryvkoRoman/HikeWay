@@ -10,7 +10,7 @@ import ua.nure.kryvko.hikeway.data.auth.DefaultAuthRepository
 import ua.nure.kryvko.hikeway.data.auth.JwtDecoder
 import ua.nure.kryvko.hikeway.data.auth.SharedPreferencesAuthSessionStore
 import ua.nure.kryvko.hikeway.data.hikelogging.local.HikeWayDatabase
-import ua.nure.kryvko.hikeway.data.pois.stub.StubPointOfInterestRepository
+import ua.nure.kryvko.hikeway.data.pois.remote.RemotePointOfInterestRepository
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_1_2
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_2_3
 import ua.nure.kryvko.hikeway.data.hikelogging.local.MIGRATION_3_4
@@ -42,8 +42,19 @@ import ua.nure.kryvko.hikeway.domain.auth.ObserveAuthSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
 import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.AddPoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.DeletePoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.DeletePoiPhotoUseCase
+import ua.nure.kryvko.hikeway.domain.pois.DeletePointOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.GetNearbyPointsOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.GetPointOfInterestDetailUseCase
 import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
 import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.RemovePointOfInterestRatingUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UpdatePoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UpdatePoiPhotoUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UpdatePointOfInterestUseCase
+import ua.nure.kryvko.hikeway.domain.pois.UploadPoiPhotoUseCase
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routes.CustomRouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
@@ -119,7 +130,7 @@ class AppContainer(context: Context) {
         listOf(StubRouteRepository(), localRouteRepository)
     )
     private val pointOfInterestRepository: PointOfInterestRepository =
-        StubPointOfInterestRepository()
+        RemotePointOfInterestRepository(apiServices.pois, gson)
     private val hikeLogRepository: HikeLogRepository = RoomHikeLogRepository(
         database.hikeLogDao(),
         currentUserProvider,
@@ -133,7 +144,18 @@ class AppContainer(context: Context) {
     val observeCompletedHikes = ObserveCompletedHikesUseCase(hikeLogRepository)
     val saveCustomRoute = SaveCustomRouteUseCase(customRouteRepository)
     val getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository)
+    val getNearbyPointsOfInterest = GetNearbyPointsOfInterestUseCase(pointOfInterestRepository)
+    val getPointOfInterestDetail = GetPointOfInterestDetailUseCase(pointOfInterestRepository)
+    val updatePointOfInterest = UpdatePointOfInterestUseCase(pointOfInterestRepository)
+    val deletePointOfInterest = DeletePointOfInterestUseCase(pointOfInterestRepository)
     val ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository)
+    val removePointOfInterestRating = RemovePointOfInterestRatingUseCase(pointOfInterestRepository)
+    val addPoiComment = AddPoiCommentUseCase(pointOfInterestRepository)
+    val updatePoiComment = UpdatePoiCommentUseCase(pointOfInterestRepository)
+    val deletePoiComment = DeletePoiCommentUseCase(pointOfInterestRepository)
+    val uploadPoiPhoto = UploadPoiPhotoUseCase(pointOfInterestRepository)
+    val updatePoiPhoto = UpdatePoiPhotoUseCase(pointOfInterestRepository)
+    val deletePoiPhoto = DeletePoiPhotoUseCase(pointOfInterestRepository)
     val login = LoginUseCase(authRepository)
     val signUp = SignUpUseCase(authRepository)
     val restoreSession = RestoreSessionUseCase(authRepository)

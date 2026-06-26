@@ -28,6 +28,7 @@ class SharedPreferencesAuthSessionStore(context: Context) : AuthSessionStore {
             expiresAtEpochMillis = preferences.getLong(KEY_EXPIRES_AT, 0L),
             username = username,
             userId = userId,
+            roles = preferences.getStringSet(KEY_ROLES, emptySet()).orEmpty(),
         )
     }
 
@@ -38,6 +39,7 @@ class SharedPreferencesAuthSessionStore(context: Context) : AuthSessionStore {
             .putLong(KEY_EXPIRES_AT, session.expiresAtEpochMillis)
             .putString(KEY_USERNAME, session.username)
             .putString(KEY_USER_ID, session.userId)
+            .putStringSet(KEY_ROLES, session.roles)
             .apply()
     }
 
@@ -51,5 +53,6 @@ class SharedPreferencesAuthSessionStore(context: Context) : AuthSessionStore {
         const val KEY_EXPIRES_AT = "expires_at_epoch_millis"
         const val KEY_USERNAME = "username"
         const val KEY_USER_ID = "user_id"
+        const val KEY_ROLES = "roles"
     }
 }

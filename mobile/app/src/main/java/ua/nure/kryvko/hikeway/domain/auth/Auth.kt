@@ -11,6 +11,7 @@ data class AuthSession(
     val expiresAtEpochMillis: Long,
     val username: String,
     val userId: String,
+    val roles: Set<String> = emptySet(),
 )
 
 data class SignUpRequest(

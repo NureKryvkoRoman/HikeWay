@@ -1,6 +1,10 @@
 package ua.nure.kryvko.hikeway.data.pois.stub
 
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PoiComment
+import ua.nure.kryvko.hikeway.core.model.PoiPhoto
+import ua.nure.kryvko.hikeway.core.model.PoiPhotoUpload
+import ua.nure.kryvko.hikeway.core.model.PoiRating
 import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.domain.pois.PointOfInterestRepository
 
@@ -11,9 +15,59 @@ class StubPointOfInterestRepository(
         return pointsOfInterest
     }
 
-    override suspend fun submitRating(poiId: Long, rating: Int) {
-        // Backend endpoint is not implemented yet; keep this call as a no-op.
+    override suspend fun getDetail(poiId: Long): PointOfInterest {
+        return pointsOfInterest.first { it.id == poiId }
     }
+
+    override suspend fun update(
+        poiId: Long,
+        name: String,
+        description: String,
+        location: GeoPoint,
+    ): PointOfInterest {
+        return getDetail(poiId).copy(name = name, description = description, location = location)
+    }
+
+    override suspend fun delete(poiId: Long) = Unit
+
+    override suspend fun submitRating(poiId: Long, rating: Int): PoiRating {
+        return PoiRating(averageRating = rating.toDouble(), ratingCount = 1, userRating = rating)
+    }
+
+    override suspend fun removeRating(poiId: Long): PoiRating {
+        return PoiRating(averageRating = 0.0, ratingCount = 0, userRating = null)
+    }
+
+    override suspend fun getComments(poiId: Long): List<PoiComment> = emptyList()
+
+    override suspend fun addComment(poiId: Long, text: String): PoiComment {
+        return PoiComment(1, "stub", "Stub user", true, text)
+    }
+
+    override suspend fun updateComment(poiId: Long, commentId: Long, text: String): PoiComment {
+        return PoiComment(commentId, "stub", "Stub user", true, text)
+    }
+
+    override suspend fun deleteComment(poiId: Long, commentId: Long) = Unit
+
+    override suspend fun uploadPhoto(poiId: Long, upload: PoiPhotoUpload): PoiPhoto {
+        return PoiPhoto(
+            id = 1,
+            contributorId = "stub",
+            contributorDisplayName = "Stub user",
+            ownedByCurrentUser = true,
+            url = "",
+            contentType = upload.contentType,
+            sizeBytes = upload.sizeBytes,
+            caption = upload.caption,
+        )
+    }
+
+    override suspend fun updatePhoto(poiId: Long, photoId: Long, caption: String?): PoiPhoto {
+        return PoiPhoto(photoId, "stub", "Stub user", true, "", "image/jpeg", 0, caption)
+    }
+
+    override suspend fun deletePhoto(poiId: Long, photoId: Long) = Unit
 }
 
 val stubPointsOfInterest = listOf(

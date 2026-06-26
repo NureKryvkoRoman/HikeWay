@@ -85,6 +85,7 @@ import ua.nure.kryvko.hikeway.ui.map.toRouteFeatureCollectionGeoJson
 fun RouteSearchScreen(
     viewModel: RouteSearchViewModel,
     onCreateRoute: () -> Unit = {},
+    isAdmin: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
@@ -146,6 +147,19 @@ fun RouteSearchScreen(
                 poi = poi,
                 onDismiss = viewModel::dismissPoi,
                 onRate = viewModel::ratePoi,
+                isLoading = state.isPoiLoading,
+                isActionInProgress = state.isPoiActionInProgress,
+                errorMessage = state.poiErrorMessage,
+                onRemoveRating = viewModel::removePoiRating,
+                onAddComment = viewModel::addPoiComment,
+                onUpdateComment = viewModel::updatePoiComment,
+                onDeleteComment = viewModel::deletePoiComment,
+                onUploadPhoto = viewModel::uploadPoiPhoto,
+                onUpdatePhoto = viewModel::updatePoiPhoto,
+                onDeletePhoto = viewModel::deletePoiPhoto,
+                onUpdatePoi = viewModel::updateSelectedPoi,
+                onDeletePoi = viewModel::deleteSelectedPoi,
+                isAdmin = isAdmin,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }

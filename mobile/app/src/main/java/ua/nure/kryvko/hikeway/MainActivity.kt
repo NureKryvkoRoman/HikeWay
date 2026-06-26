@@ -76,7 +76,18 @@ class MainActivity : ComponentActivity() {
                 timeProvider = container.timeProvider,
                 activeTimer = container.activeTimer,
                 getPointsOfInterest = container.getPointsOfInterest,
+                getNearbyPointsOfInterest = container.getNearbyPointsOfInterest,
+                getPointOfInterestDetail = container.getPointOfInterestDetail,
+                updatePointOfInterest = container.updatePointOfInterest,
+                deletePointOfInterest = container.deletePointOfInterest,
                 ratePointOfInterest = container.ratePointOfInterest,
+                removePointOfInterestRating = container.removePointOfInterestRating,
+                addPoiComment = container.addPoiComment,
+                updatePoiComment = container.updatePoiComment,
+                deletePoiComment = container.deletePoiComment,
+                uploadPoiPhoto = container.uploadPoiPhoto,
+                updatePoiPhoto = container.updatePoiPhoto,
+                deletePoiPhoto = container.deletePoiPhoto,
             ),
         )[RouteSearchViewModel::class.java]
         val completedHikesViewModel = ViewModelProvider(
@@ -209,6 +220,7 @@ fun HikeWayApp(
             AppDestination.HOME -> RouteSearchScreen(
                 viewModel = routeSearchViewModel,
                 onCreateRoute = { isCreatingRoute = true },
+                isAdmin = authState.isAdmin,
             )
             AppDestination.COMPLETED_HIKES -> CompletedHikesScreen(completedHikesViewModel)
             AppDestination.PROFILE -> ProfileScreen(onLogOut = authViewModel::logOut)

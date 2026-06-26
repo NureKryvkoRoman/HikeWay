@@ -24,6 +24,7 @@ class AuthSessionFactory(
                 response.expiresInSeconds.coerceAtLeast(0L) * 1_000L,
             username = username,
             userId = jwtDecoder.subject(response.accessToken),
+            roles = jwtDecoder.roles(response.accessToken),
         )
     }
 }

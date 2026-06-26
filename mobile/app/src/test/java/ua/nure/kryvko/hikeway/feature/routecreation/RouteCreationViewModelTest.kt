@@ -14,6 +14,7 @@ import org.junit.Before
 import org.junit.Test
 import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PoiRating
 import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.Terrain
@@ -173,7 +174,8 @@ private class FakePointOfInterestRepository : PointOfInterestRepository {
         )
     }
 
-    override suspend fun submitRating(poiId: Long, rating: Int) {
+    override suspend fun submitRating(poiId: Long, rating: Int): PoiRating {
         submittedRatings += poiId to rating
+        return PoiRating(rating.toDouble(), 1, rating)
     }
 }

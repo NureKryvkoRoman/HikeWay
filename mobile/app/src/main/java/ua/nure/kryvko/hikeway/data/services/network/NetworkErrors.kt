@@ -5,9 +5,15 @@ import com.google.gson.annotations.SerializedName
 import java.io.IOException
 import retrofit2.HttpException
 
-class ApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+class ApiException(
+    message: String,
+    cause: Throwable? = null,
+    val code: String? = null,
+    val statusCode: Int? = null,
+) : RuntimeException(message, cause)
 
 private data class ApiErrorDto(
+    val code: String? = null,
     @SerializedName("error_description")
     val errorDescription: String? = null,
     val message: String? = null,
@@ -19,18 +25,26 @@ fun Throwable.toApiException(
     fallbackMessage: String,
 ): ApiException {
     if (this is ApiException) return this
+    var apiCode: String? = null
+    var statusCode: Int? = null
     val message = when (this) {
-        is HttpException -> response()?.errorBody()?.string()
+        is HttpException -> {
+            statusCode = code()
+            response()?.errorBody()?.string()
             ?.takeIf(String::isNotBlank)
             ?.let { body ->
                 runCatching { gson.fromJson(body, ApiErrorDto::class.java) }
                     .getOrNull()
-                    ?.let { it.errorDescription ?: it.message ?: it.error }
+                    ?.let {
+                        apiCode = it.code
+                        it.errorDescription ?: it.message ?: it.error
+                    }
                     ?: body
             }
             ?: "$fallbackMessage (${code()})"
+        }
         is IOException -> "Network error: ${message ?: fallbackMessage}"
         else -> message ?: fallbackMessage
     }
-    return ApiException(message, this)
+    return ApiException(message, this, apiCode, statusCode)
 }
