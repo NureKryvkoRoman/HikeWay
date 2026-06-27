@@ -13,6 +13,9 @@ interface PointOfInterestRepository {
         return getPointsOfInterest()
     }
     suspend fun getDetail(poiId: Long): PointOfInterest = getPointsOfInterest().first { it.id == poiId }
+    suspend fun create(name: String, description: String, location: GeoPoint): PointOfInterest {
+        error("PoI creation is not supported by this repository.")
+    }
     suspend fun update(poiId: Long, name: String, description: String, location: GeoPoint): PointOfInterest {
         error("PoI update is not supported by this repository.")
     }
@@ -71,6 +74,22 @@ class GetPointOfInterestDetailUseCase(
     }
 }
 
+class CreatePointOfInterestUseCase(
+    private val repository: PointOfInterestRepository,
+) {
+    suspend operator fun invoke(
+        name: String,
+        description: String,
+        location: GeoPoint,
+    ): PointOfInterest {
+        return repository.create(
+            name = requirePoiText(name, "PoI name"),
+            description = requirePoiText(description, "PoI description"),
+            location = location,
+        )
+    }
+}
+
 class UpdatePointOfInterestUseCase(
     private val repository: PointOfInterestRepository,
 ) {
@@ -80,9 +99,12 @@ class UpdatePointOfInterestUseCase(
         description: String,
         location: GeoPoint,
     ): PointOfInterest {
-        require(name.isNotBlank()) { "PoI name is required." }
-        require(description.isNotBlank()) { "PoI description is required." }
-        return repository.update(poiId, name.trim(), description.trim(), location)
+        return repository.update(
+            poiId,
+            requirePoiText(name, "PoI name"),
+            requirePoiText(description, "PoI description"),
+            location,
+        )
     }
 }
 
@@ -165,5 +187,11 @@ private fun requireCommentText(text: String): String {
     val trimmed = text.trim()
     require(trimmed.isNotEmpty()) { "Comment is required." }
     require(trimmed.length <= 2000) { "Comment must be at most 2000 characters." }
+    return trimmed
+}
+
+private fun requirePoiText(text: String, field: String): String {
+    val trimmed = text.trim()
+    require(trimmed.isNotEmpty()) { "$field is required." }
     return trimmed
 }

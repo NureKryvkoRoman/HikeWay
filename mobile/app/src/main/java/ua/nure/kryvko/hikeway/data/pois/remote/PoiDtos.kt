@@ -102,6 +102,13 @@ data class PoiUpdateRequestDto(
     val latitude: Double,
 )
 
+data class PoiCreateRequestDto(
+    val name: String,
+    val description: String,
+    val longitude: Double,
+    val latitude: Double,
+)
+
 data class PoiRatingRequestDto(val score: Int)
 data class PoiCommentRequestDto(val text: String)
 data class PoiPhotoUploadRequestDto(val contentType: String, val sizeBytes: Long)

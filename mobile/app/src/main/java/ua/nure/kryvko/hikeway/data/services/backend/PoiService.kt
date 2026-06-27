@@ -12,6 +12,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Url
 import ua.nure.kryvko.hikeway.data.pois.remote.PageResponseDto
+import ua.nure.kryvko.hikeway.data.pois.remote.PoiCreateRequestDto
 import ua.nure.kryvko.hikeway.data.pois.remote.PoiCommentDto
 import ua.nure.kryvko.hikeway.data.pois.remote.PoiCommentRequestDto
 import ua.nure.kryvko.hikeway.data.pois.remote.PoiDetailDto
@@ -44,6 +45,9 @@ interface PoiService {
 
     @GET("pois/{id}")
     suspend fun get(@Path("id") id: Long): PoiDetailDto
+
+    @POST("pois")
+    suspend fun create(@Body request: PoiCreateRequestDto): PoiDetailDto
 
     @PATCH("pois/{id}")
     suspend fun update(

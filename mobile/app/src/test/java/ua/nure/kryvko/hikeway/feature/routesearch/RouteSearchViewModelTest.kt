@@ -29,6 +29,7 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 import ua.nure.kryvko.hikeway.domain.pois.AddPoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.CreatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePoiCommentUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePoiPhotoUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePointOfInterestUseCase
@@ -164,6 +165,92 @@ class RouteSearchViewModelTest {
 
         assertEquals(5, viewModel.uiState.value.selectedPoi?.userRating)
         assertEquals(101L to 5, pointOfInterestRepository.submittedRatings.single())
+    }
+
+    @Test
+    fun longPressOpensContextAndStartsPoiCreation() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        val point = GeoPoint(longitude = 24.03, latitude = 49.84)
+        viewModel.openMapContext(point)
+        assertEquals(point, viewModel.uiState.value.mapContextPoint)
+
+        viewModel.startPoiCreationFromContext()
+
+        assertEquals(null, viewModel.uiState.value.mapContextPoint)
+        assertEquals(point, viewModel.uiState.value.poiCreationPoint)
+    }
+
+    @Test
+    fun createsPoiAndSelectsReturnedDetail() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        val point = GeoPoint(longitude = 24.03, latitude = 49.84)
+        viewModel.openMapContext(point)
+        viewModel.startPoiCreationFromContext()
+        viewModel.updatePoiCreationName("New spring")
+        viewModel.updatePoiCreationDescription("Fresh water near the trail.")
+        viewModel.createPoi()
+        advanceUntilIdle()
+
+        assertEquals("New spring", viewModel.uiState.value.selectedPoi?.name)
+        assertEquals(null, viewModel.uiState.value.poiCreationPoint)
+        assertEquals(point, pointOfInterestRepository.created.single().location)
+        assertEquals(true, viewModel.uiState.value.pointsOfInterest.any { it.name == "New spring" })
+    }
+
+    @Test
+    fun createPoiFailurePreservesInputAndShowsError() = runTest(dispatcher) {
+        pointOfInterestRepository.failCreates = true
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+
+        val point = GeoPoint(longitude = 24.03, latitude = 49.84)
+        viewModel.openMapContext(point)
+        viewModel.startPoiCreationFromContext()
+        viewModel.updatePoiCreationName("New spring")
+        viewModel.updatePoiCreationDescription("Fresh water near the trail.")
+        viewModel.createPoi()
+        advanceUntilIdle()
+
+        assertEquals(point, viewModel.uiState.value.poiCreationPoint)
+        assertEquals("New spring", viewModel.uiState.value.poiCreationName)
+        assertNotNull(viewModel.uiState.value.poiCreationErrorMessage)
+    }
+
+    @Test
+    fun mapViewportChangesFetchNearbyPoisAfterDebounce() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+        pointOfInterestRepository.nearbyRequests.clear()
+
+        viewModel.onMapViewportChanged(GeoPoint(longitude = 24.2, latitude = 49.9), zoom = 12.0)
+        advanceTimeBy(499)
+        runCurrent()
+        assertEquals(0, pointOfInterestRepository.nearbyRequests.size)
+
+        advanceTimeBy(1)
+        runCurrent()
+
+        assertEquals(1, pointOfInterestRepository.nearbyRequests.size)
+    }
+
+    @Test
+    fun smallMapViewportChangesDoNotRefetchNearbyPois() = runTest(dispatcher) {
+        val viewModel = viewModel(StubLocationProvider())
+        advanceUntilIdle()
+        pointOfInterestRepository.nearbyRequests.clear()
+
+        viewModel.onMapViewportChanged(GeoPoint(longitude = 24.2, latitude = 49.9), zoom = 12.0)
+        advanceTimeBy(500)
+        runCurrent()
+        viewModel.onMapViewportChanged(GeoPoint(longitude = 24.2001, latitude = 49.9001), zoom = 12.0)
+        advanceTimeBy(500)
+        runCurrent()
+
+        assertEquals(1, pointOfInterestRepository.nearbyRequests.size)
     }
 
     @Test
@@ -358,6 +445,7 @@ class RouteSearchViewModelTest {
             getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository),
             getNearbyPointsOfInterest = GetNearbyPointsOfInterestUseCase(pointOfInterestRepository),
             getPointOfInterestDetail = GetPointOfInterestDetailUseCase(pointOfInterestRepository),
+            createPointOfInterest = CreatePointOfInterestUseCase(pointOfInterestRepository),
             updatePointOfInterest = UpdatePointOfInterestUseCase(pointOfInterestRepository),
             deletePointOfInterest = DeletePointOfInterestUseCase(pointOfInterestRepository),
             ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository),
@@ -408,6 +496,9 @@ private class FakeHikeLogRepository : HikeLogRepository {
 
 private class FakePointOfInterestRepository : PointOfInterestRepository {
     val submittedRatings = mutableListOf<Pair<Long, Int>>()
+    val created = mutableListOf<PointOfInterest>()
+    val nearbyRequests = mutableListOf<Pair<GeoPoint, Double>>()
+    var failCreates = false
 
     override suspend fun getPointsOfInterest(): List<PointOfInterest> {
         return listOf(
@@ -420,6 +511,28 @@ private class FakePointOfInterestRepository : PointOfInterestRepository {
                 averageRating = 4.2,
             )
         )
+    }
+
+    override suspend fun getNearby(center: GeoPoint, radiusMeters: Double): List<PointOfInterest> {
+        nearbyRequests += center to radiusMeters
+        return getPointsOfInterest()
+    }
+
+    override suspend fun create(
+        name: String,
+        description: String,
+        location: GeoPoint,
+    ): PointOfInterest {
+        if (failCreates) error("create failed")
+        return PointOfInterest(
+            id = 202,
+            name = name,
+            description = description,
+            location = location,
+            ownerId = "me",
+            ownerDisplayName = "Me",
+            ownedByCurrentUser = true,
+        ).also { created += it }
     }
 
     override suspend fun submitRating(poiId: Long, rating: Int): PoiRating {

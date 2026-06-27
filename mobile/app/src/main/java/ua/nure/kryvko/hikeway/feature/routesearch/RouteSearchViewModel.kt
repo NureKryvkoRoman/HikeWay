@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import ua.nure.kryvko.hikeway.domain.hikelogging.SaveCompletedHikeUseCase
 import ua.nure.kryvko.hikeway.domain.hikelogging.TimeProvider
 import ua.nure.kryvko.hikeway.data.services.network.ApiException
 import ua.nure.kryvko.hikeway.domain.pois.AddPoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.CreatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePoiCommentUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePoiPhotoUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePointOfInterestUseCase
@@ -63,6 +65,12 @@ data class RouteSearchUiState(
     val isPoiLoading: Boolean = false,
     val isPoiActionInProgress: Boolean = false,
     val poiErrorMessage: String? = null,
+    val mapContextPoint: GeoPoint? = null,
+    val poiCreationPoint: GeoPoint? = null,
+    val poiCreationName: String = "",
+    val poiCreationDescription: String = "",
+    val isPoiCreationSaving: Boolean = false,
+    val poiCreationErrorMessage: String? = null,
 )
 
 class RouteSearchViewModel(
@@ -75,6 +83,7 @@ class RouteSearchViewModel(
     private val getPointsOfInterest: GetPointsOfInterestUseCase,
     private val getNearbyPointsOfInterest: GetNearbyPointsOfInterestUseCase,
     private val getPointOfInterestDetail: GetPointOfInterestDetailUseCase,
+    private val createPointOfInterest: CreatePointOfInterestUseCase,
     private val updatePointOfInterest: UpdatePointOfInterestUseCase,
     private val deletePointOfInterest: DeletePointOfInterestUseCase,
     private val ratePointOfInterest: RatePointOfInterestUseCase,
@@ -90,6 +99,9 @@ class RouteSearchViewModel(
     val uiState: StateFlow<RouteSearchUiState> = _uiState.asStateFlow()
     private var trackingJob: Job? = null
     private var activeTimerJob: Job? = null
+    private var poiViewportJob: Job? = null
+    private var lastPoiFetchCenter: GeoPoint? = null
+    private var lastPoiFetchRadiusMeters: Double? = null
 
     init {
         centerOnCurrentLocation()
@@ -147,7 +159,7 @@ class RouteSearchViewModel(
     }
 
     fun previewRoute(route: Route) {
-        _uiState.update { it.copy(previewRoute = route, saveErrorMessage = null) }
+        _uiState.update { it.copy(previewRoute = route, saveErrorMessage = null, mapContextPoint = null) }
     }
 
     fun dismissRoutePreview() {
@@ -187,6 +199,100 @@ class RouteSearchViewModel(
 
     fun dismissPoi() {
         _uiState.update { it.copy(selectedPoi = null, poiErrorMessage = null, isPoiLoading = false) }
+    }
+
+    fun openMapContext(point: GeoPoint) {
+        _uiState.update {
+            it.copy(
+                mapContextPoint = point,
+                selectedPoi = null,
+                poiCreationPoint = null,
+                poiCreationErrorMessage = null,
+            )
+        }
+    }
+
+    fun dismissMapContext() {
+        _uiState.update { it.copy(mapContextPoint = null) }
+    }
+
+    fun startPoiCreationFromContext() {
+        val point = _uiState.value.mapContextPoint ?: return
+        _uiState.update {
+            it.copy(
+                poiCreationPoint = point,
+                mapContextPoint = null,
+                poiCreationName = "",
+                poiCreationDescription = "",
+                poiCreationErrorMessage = null,
+            )
+        }
+    }
+
+    fun updatePoiCreationName(name: String) {
+        _uiState.update { it.copy(poiCreationName = name, poiCreationErrorMessage = null) }
+    }
+
+    fun updatePoiCreationDescription(description: String) {
+        _uiState.update { it.copy(poiCreationDescription = description, poiCreationErrorMessage = null) }
+    }
+
+    fun cancelPoiCreation() {
+        _uiState.update {
+            it.copy(
+                poiCreationPoint = null,
+                poiCreationName = "",
+                poiCreationDescription = "",
+                poiCreationErrorMessage = null,
+                isPoiCreationSaving = false,
+            )
+        }
+    }
+
+    fun createPoi() {
+        val state = _uiState.value
+        val point = state.poiCreationPoint ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPoiCreationSaving = true, poiCreationErrorMessage = null) }
+            runCatching {
+                createPointOfInterest(
+                    name = state.poiCreationName,
+                    description = state.poiCreationDescription,
+                    location = point,
+                )
+            }.onSuccess { poi ->
+                _uiState.update {
+                    it.copy(
+                        pointsOfInterest = it.pointsOfInterest.upsertPoi(poi),
+                        selectedPoi = poi,
+                        poiCreationPoint = null,
+                        poiCreationName = "",
+                        poiCreationDescription = "",
+                        isPoiCreationSaving = false,
+                        poiCreationErrorMessage = null,
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isPoiCreationSaving = false,
+                        poiCreationErrorMessage = error.userMessage("Could not create point of interest."),
+                    )
+                }
+            }
+        }
+    }
+
+    fun onMapViewportChanged(center: GeoPoint, zoom: Double) {
+        val radiusMeters = radiusForZoom(zoom)
+        if (!shouldFetchPois(center, radiusMeters)) {
+            return
+        }
+        poiViewportJob?.cancel()
+        poiViewportJob = viewModelScope.launch {
+            delay(POI_FETCH_DEBOUNCE_MILLIS)
+            fetchPoisNear(center, radiusMeters)
+        }
     }
 
     fun ratePoi(rating: Int) {
@@ -413,19 +519,44 @@ class RouteSearchViewModel(
 
     private fun loadPointsOfInterest(center: GeoPoint? = _uiState.value.mapCenter) {
         viewModelScope.launch {
-            runCatching {
-                if (center != null) getNearbyPointsOfInterest(center, DEFAULT_POI_RADIUS_METERS)
-                else getPointsOfInterest()
-            }
-                .onSuccess { pois ->
-                    _uiState.update { it.copy(pointsOfInterest = pois) }
-                }
-                .onFailure {
-                    _uiState.update { state ->
-                        state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+            if (center != null) {
+                fetchPoisNear(center, DEFAULT_POI_RADIUS_METERS)
+            } else {
+                runCatching { getPointsOfInterest() }
+                    .onSuccess { pois ->
+                        _uiState.update { it.copy(pointsOfInterest = pois) }
                     }
-                }
+                    .onFailure {
+                        _uiState.update { state ->
+                            state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                        }
+                    }
+            }
         }
+    }
+
+    private suspend fun fetchPoisNear(center: GeoPoint, radiusMeters: Double) {
+        runCatching { getNearbyPointsOfInterest(center, radiusMeters) }
+            .onSuccess { pois ->
+                lastPoiFetchCenter = center
+                lastPoiFetchRadiusMeters = radiusMeters
+                _uiState.update { it.copy(pointsOfInterest = pois) }
+            }
+            .onFailure {
+                _uiState.update { state ->
+                    state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                }
+            }
+    }
+
+    private fun shouldFetchPois(center: GeoPoint, radiusMeters: Double): Boolean {
+        val lastCenter = lastPoiFetchCenter ?: return true
+        val lastRadius = lastPoiFetchRadiusMeters ?: return true
+        val movedMeters = distanceKm(lastCenter, center) * 1_000.0
+        val radiusChanged = kotlin.math.abs(radiusMeters - lastRadius) / lastRadius
+        return movedMeters >= MIN_POI_REFETCH_DISTANCE_METERS ||
+            movedMeters >= lastRadius * 0.25 ||
+            radiusChanged >= POI_RADIUS_CHANGE_REFETCH_RATIO
     }
 
     private suspend fun runPoiAction(
@@ -511,6 +642,7 @@ class RouteSearchViewModel(
             getPointsOfInterest: GetPointsOfInterestUseCase,
             getNearbyPointsOfInterest: GetNearbyPointsOfInterestUseCase,
             getPointOfInterestDetail: GetPointOfInterestDetailUseCase,
+            createPointOfInterest: CreatePointOfInterestUseCase,
             updatePointOfInterest: UpdatePointOfInterestUseCase,
             deletePointOfInterest: DeletePointOfInterestUseCase,
             ratePointOfInterest: RatePointOfInterestUseCase,
@@ -535,6 +667,7 @@ class RouteSearchViewModel(
                         getPointsOfInterest = getPointsOfInterest,
                         getNearbyPointsOfInterest = getNearbyPointsOfInterest,
                         getPointOfInterestDetail = getPointOfInterestDetail,
+                        createPointOfInterest = createPointOfInterest,
                         updatePointOfInterest = updatePointOfInterest,
                         deletePointOfInterest = deletePointOfInterest,
                         ratePointOfInterest = ratePointOfInterest,
@@ -553,6 +686,11 @@ class RouteSearchViewModel(
 }
 
 private const val DEFAULT_POI_RADIUS_METERS = 20_000.0
+private const val MAX_POI_RADIUS_METERS = 100_000.0
+private const val MIN_POI_RADIUS_METERS = 2_000.0
+private const val POI_FETCH_DEBOUNCE_MILLIS = 500L
+private const val MIN_POI_REFETCH_DISTANCE_METERS = 500.0
+private const val POI_RADIUS_CHANGE_REFETCH_RATIO = 0.15
 
 private fun RouteSearchUiState.withPoiRating(
     poiId: Long,
@@ -656,6 +794,14 @@ private fun PointOfInterest.mergeFrom(other: PointOfInterest): PointOfInterest {
         comments = other.comments.ifEmpty { comments },
         createdAt = other.createdAt ?: createdAt,
         updatedAt = other.updatedAt ?: updatedAt,
+    )
+}
+
+private fun radiusForZoom(zoom: Double): Double {
+    val scale = Math.pow(2.0, 10.0 - zoom)
+    return (DEFAULT_POI_RADIUS_METERS * scale).coerceIn(
+        MIN_POI_RADIUS_METERS,
+        MAX_POI_RADIUS_METERS,
     )
 }
 

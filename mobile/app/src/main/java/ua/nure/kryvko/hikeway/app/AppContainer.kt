@@ -43,6 +43,7 @@ import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
 import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.pois.AddPoiCommentUseCase
+import ua.nure.kryvko.hikeway.domain.pois.CreatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePoiCommentUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePoiPhotoUseCase
 import ua.nure.kryvko.hikeway.domain.pois.DeletePointOfInterestUseCase
@@ -146,6 +147,7 @@ class AppContainer(context: Context) {
     val getPointsOfInterest = GetPointsOfInterestUseCase(pointOfInterestRepository)
     val getNearbyPointsOfInterest = GetNearbyPointsOfInterestUseCase(pointOfInterestRepository)
     val getPointOfInterestDetail = GetPointOfInterestDetailUseCase(pointOfInterestRepository)
+    val createPointOfInterest = CreatePointOfInterestUseCase(pointOfInterestRepository)
     val updatePointOfInterest = UpdatePointOfInterestUseCase(pointOfInterestRepository)
     val deletePointOfInterest = DeletePointOfInterestUseCase(pointOfInterestRepository)
     val ratePointOfInterest = RatePointOfInterestUseCase(pointOfInterestRepository)

@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
                 getPointsOfInterest = container.getPointsOfInterest,
                 getNearbyPointsOfInterest = container.getNearbyPointsOfInterest,
                 getPointOfInterestDetail = container.getPointOfInterestDetail,
+                createPointOfInterest = container.createPointOfInterest,
                 updatePointOfInterest = container.updatePointOfInterest,
                 deletePointOfInterest = container.deletePointOfInterest,
                 ratePointOfInterest = container.ratePointOfInterest,

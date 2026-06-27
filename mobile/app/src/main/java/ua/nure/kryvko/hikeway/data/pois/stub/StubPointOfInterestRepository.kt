@@ -19,6 +19,22 @@ class StubPointOfInterestRepository(
         return pointsOfInterest.first { it.id == poiId }
     }
 
+    override suspend fun create(
+        name: String,
+        description: String,
+        location: GeoPoint,
+    ): PointOfInterest {
+        return PointOfInterest(
+            id = (pointsOfInterest.maxOfOrNull { it.id } ?: 0L) + 1L,
+            name = name,
+            description = description,
+            location = location,
+            ownerId = "stub",
+            ownerDisplayName = "Stub user",
+            ownedByCurrentUser = true,
+        )
+    }
+
     override suspend fun update(
         poiId: Long,
         name: String,

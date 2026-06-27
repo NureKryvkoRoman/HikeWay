@@ -45,6 +45,23 @@ class RemotePointOfInterestRepository(
         }
     }
 
+    override suspend fun create(
+        name: String,
+        description: String,
+        location: GeoPoint,
+    ): PointOfInterest {
+        return apiCall("Could not create point of interest.") {
+            service.create(
+                PoiCreateRequestDto(
+                    name = name,
+                    description = description,
+                    longitude = location.longitude,
+                    latitude = location.latitude,
+                )
+            ).toDomain()
+        }
+    }
+
     override suspend fun update(
         poiId: Long,
         name: String,

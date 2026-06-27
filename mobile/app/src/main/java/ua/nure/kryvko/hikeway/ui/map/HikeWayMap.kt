@@ -13,6 +13,7 @@ import org.maplibre.compose.camera.CameraState
 import org.maplibre.compose.camera.rememberCameraState
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.style.BaseStyle
+import org.maplibre.compose.util.ClickResult
 import org.maplibre.compose.util.MaplibreComposable
 import org.maplibre.spatialk.geojson.Position
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
@@ -52,6 +53,7 @@ fun HikeWayMap(
     initialZoom: Double = DEFAULT_MAP_ZOOM,
     centerRequest: MapCenterRequest? = null,
     cameraEffect: @Composable (CameraState) -> Unit = {},
+    onMapLongClick: ((GeoPoint) -> Unit)? = null,
     overlays: @Composable BoxScope.() -> Unit = {},
     content: @Composable @MaplibreComposable () -> Unit,
 ) {
@@ -82,6 +84,14 @@ fun HikeWayMap(
         MaplibreMap(
             baseStyle = BaseStyle.Uri(MAP_STYLE),
             cameraState = cameraState,
+            onMapLongClick = { position, _ ->
+                if (onMapLongClick == null) {
+                    ClickResult.Pass
+                } else {
+                    onMapLongClick(position.toGeoPoint())
+                    ClickResult.Consume
+                }
+            },
             modifier = Modifier.fillMaxSize(),
         ) {
             content()

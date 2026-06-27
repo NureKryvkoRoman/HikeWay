@@ -40,11 +40,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,6 +54,7 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import org.maplibre.compose.expressions.dsl.const
@@ -74,9 +77,13 @@ import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.feature.pois.PoiOverviewPopup
 import ua.nure.kryvko.hikeway.ui.map.HikeWayMap
+import ua.nure.kryvko.hikeway.ui.map.MapContextAction
+import ua.nure.kryvko.hikeway.ui.map.MapContextMenu
 import ua.nure.kryvko.hikeway.ui.map.MapCenterMode
 import ua.nure.kryvko.hikeway.ui.map.MapCenterRequest
+import ua.nure.kryvko.hikeway.ui.map.emptyFeatureCollectionGeoJson
 import ua.nure.kryvko.hikeway.ui.map.toLineStringFeatureGeoJson
+import ua.nure.kryvko.hikeway.ui.map.toGeoPoint
 import ua.nure.kryvko.hikeway.ui.map.toPoiFeatureCollectionGeoJson
 import ua.nure.kryvko.hikeway.ui.map.toPointFeatureGeoJson
 import ua.nure.kryvko.hikeway.ui.map.toRouteFeatureCollectionGeoJson
@@ -107,10 +114,17 @@ fun RouteSearchScreen(
             userPosition = pickingSession?.userPosition,
             userBearingDegrees = pickingSession?.bearingDegrees ?: 0.0,
             pointsOfInterest = state.pointsOfInterest,
+            contextPoint = state.mapContextPoint ?: state.poiCreationPoint,
             mapCenter = state.mapCenter,
             mapCenterRequestId = state.mapCenterRequestId,
             onCenterLocation = viewModel::centerOnCurrentLocation,
             onPoiClick = viewModel::selectPoi,
+            onMapLongClick = if (pickingSession == null && previewRoute == null) {
+                viewModel::openMapContext
+            } else {
+                null
+            },
+            onMapViewportChanged = viewModel::onMapViewportChanged,
             centerMode = previewRoute
                 ?.takeIf { pickingSession == null }
                 ?.let { MapCenterMode.RouteStart(it.geometry.points) }
@@ -163,6 +177,33 @@ fun RouteSearchScreen(
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
+        state.mapContextPoint?.let { point ->
+            MapContextMenu(
+                point = point,
+                actions = listOf(
+                    MapContextAction(
+                        label = "Add PoI",
+                        onClick = viewModel::startPoiCreationFromContext,
+                    )
+                ),
+                onDismiss = viewModel::dismissMapContext,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+    }
+
+    state.poiCreationPoint?.let { point ->
+        CreatePoiDialog(
+            point = point,
+            name = state.poiCreationName,
+            description = state.poiCreationDescription,
+            isSaving = state.isPoiCreationSaving,
+            errorMessage = state.poiCreationErrorMessage,
+            onNameChange = viewModel::updatePoiCreationName,
+            onDescriptionChange = viewModel::updatePoiCreationDescription,
+            onSave = viewModel::createPoi,
+            onDismiss = viewModel::cancelPoiCreation,
+        )
     }
 
     if (showFilters) {
@@ -192,10 +233,13 @@ private fun RoutesMap(
     userPosition: GeoPoint?,
     userBearingDegrees: Double,
     pointsOfInterest: List<PointOfInterest>,
+    contextPoint: GeoPoint?,
     mapCenter: GeoPoint?,
     mapCenterRequestId: Long,
     onCenterLocation: () -> Unit,
     onPoiClick: (Long) -> Unit,
+    onMapLongClick: ((GeoPoint) -> Unit)?,
+    onMapViewportChanged: (GeoPoint, Double) -> Unit,
     centerMode: MapCenterMode,
     highlightedMode: Boolean,
 ) {
@@ -203,6 +247,9 @@ private fun RoutesMap(
     val walkedPathGeoJson = remember(walkedPath) { walkedPath.toLineStringFeatureGeoJson() }
     val userGeoJson = remember(userPosition) { userPosition.toPointFeatureGeoJson() }
     val poiGeoJson = remember(pointsOfInterest) { pointsOfInterest.toPoiFeatureCollectionGeoJson() }
+    val contextGeoJson = remember(contextPoint) {
+        contextPoint?.toPointFeatureGeoJson() ?: emptyFeatureCollectionGeoJson()
+    }
     val arrowPainter = rememberVectorPainter(Icons.Default.KeyboardArrowUp)
     val poiPainter = painterResource(R.drawable.poi_marker_24)
     val currentLocationCenterRequest = mapCenter?.let {
@@ -227,6 +274,18 @@ private fun RoutesMap(
         centerMode = centerMode,
         currentLocation = mapCenter,
         centerRequest = routeStartCenterRequest ?: currentLocationCenterRequest,
+        onMapLongClick = onMapLongClick,
+        cameraEffect = { cameraState ->
+            LaunchedEffect(cameraState) {
+                snapshotFlow {
+                    cameraState.position.target.toGeoPoint() to cameraState.position.zoom
+                }
+                    .distinctUntilChanged()
+                    .collect { (center, zoom) ->
+                        onMapViewportChanged(center, zoom)
+                    }
+            }
+        },
         overlays = {
             Button(
                 onClick = onCenterLocation,
@@ -310,7 +369,88 @@ private fun RoutesMap(
                     },
                 )
             }
+            if (contextPoint != null) {
+                val contextSource = rememberGeoJsonSource(GeoJsonData.JsonString(contextGeoJson))
+                SymbolLayer(
+                    id = "map-context-point",
+                    source = contextSource,
+                    iconImage = image(
+                        value = painterResource(R.drawable.center_24),
+                        size = DpSize(34.dp, 34.dp),
+                        drawAsSdf = true,
+                    ),
+                    iconColor = const(Color(0xFF0B57D0)),
+                    iconHaloColor = const(Color.White),
+                    iconHaloWidth = const(2.dp),
+                    iconAllowOverlap = const(true),
+                    iconIgnorePlacement = const(true),
+                )
+            }
         }
+}
+
+@Composable
+private fun CreatePoiDialog(
+    point: GeoPoint,
+    name: String,
+    description: String,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onNameChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add point of interest") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "%.5f, %.5f".format(point.latitude, point.longitude),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Name") },
+                    singleLine = true,
+                    enabled = !isSaving,
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = onDescriptionChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Description") },
+                    minLines = 3,
+                    enabled = !isSaving,
+                )
+                errorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onSave,
+                enabled = !isSaving,
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving,
+            ) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable

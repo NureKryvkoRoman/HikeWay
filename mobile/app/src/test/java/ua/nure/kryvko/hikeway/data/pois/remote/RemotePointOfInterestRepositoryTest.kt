@@ -140,6 +140,49 @@ class RemotePointOfInterestRepositoryTest {
     }
 
     @Test
+    fun createsPoi() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(201).setBody(
+                """
+                {
+                  "id": 12,
+                  "name": "New spring",
+                  "description": "Fresh water",
+                  "longitude": 24.3,
+                  "latitude": 49.7,
+                  "ownerId": "me",
+                  "ownerDisplayName": "Me",
+                  "ownedByCurrentUser": true,
+                  "averageRating": 0.0,
+                  "ratingCount": 0,
+                  "userRating": null,
+                  "photos": [],
+                  "createdAt": "2026-06-27T10:00:00Z",
+                  "updatedAt": "2026-06-27T10:00:00Z"
+                }
+                """.trimIndent()
+            )
+        )
+
+        val poi = repository.create(
+            name = "New spring",
+            description = "Fresh water",
+            location = GeoPoint(24.3, 49.7),
+        )
+
+        assertEquals(12, poi.id)
+        assertEquals("New spring", poi.name)
+        assertTrue(poi.ownedByCurrentUser)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/pois", request.path)
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"name\":\"New spring\""))
+        assertTrue(body.contains("\"longitude\":24.3"))
+        assertTrue(body.contains("\"latitude\":49.7"))
+    }
+
+    @Test
     fun submitsRatingAndCommentMutations() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
