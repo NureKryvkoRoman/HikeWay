@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface RouteRepository extends JpaRepository<Route, Long>, RouteSearchRepository {
     Optional<Route> findByCreatedByAndClientId(String createdBy, UUID clientId);
+    long countByCreatedBy(String createdBy);
 }

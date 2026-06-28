@@ -21,8 +21,10 @@ import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.PoiRating
 import ua.nure.kryvko.hikeway.core.model.PointOfInterest
+import ua.nure.kryvko.hikeway.core.model.Route
+import ua.nure.kryvko.hikeway.core.model.RouteGeometry
+import ua.nure.kryvko.hikeway.core.model.Terrain
 import ua.nure.kryvko.hikeway.data.routepicking.stub.StubRouteTrackingProvider
-import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
 import ua.nure.kryvko.hikeway.domain.hikelogging.ActiveTimer
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLogRepository
@@ -47,8 +49,10 @@ import ua.nure.kryvko.hikeway.domain.routepicking.RoutePickingStatus
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteProgress
 import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
+import ua.nure.kryvko.hikeway.domain.routes.RouteRepository
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
+import ua.nure.kryvko.hikeway.domain.routes.matches
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -104,6 +108,18 @@ class RouteSearchViewModelTest {
 
         assertFalse(viewModel.uiState.value.isLoading)
         assertNotNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun exposesRouteFetchFailureAsRouteError() = runTest(dispatcher) {
+        val viewModel = viewModel(
+            locationProvider = StubLocationProvider(),
+            routeRepository = FailingRouteRepository(),
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals("Routes are unavailable.", viewModel.uiState.value.errorMessage)
     }
 
     @Test
@@ -431,10 +447,11 @@ class RouteSearchViewModelTest {
     private fun viewModel(
         locationProvider: LocationProvider,
         routeTrackingProvider: RouteTrackingProvider = StubRouteTrackingProvider(stepDelayMillis = 1_000L),
+        routeRepository: RouteRepository = FakeRouteRepository(),
     ): RouteSearchViewModel {
         return RouteSearchViewModel(
             searchRoutes = SearchRoutesUseCase(
-                repository = StubRouteRepository(),
+                repository = routeRepository,
                 locationProvider = locationProvider,
             ),
             getCurrentLocation = GetCurrentLocationUseCase(locationProvider),
@@ -493,6 +510,102 @@ private class FakeHikeLogRepository : HikeLogRepository {
 
     override fun observeAll(): Flow<List<HikeLog>> = emptyFlow()
 }
+
+private class FakeRouteRepository : RouteRepository {
+    private val routes = listOf(
+        route(
+            1,
+            "High Castle Loop",
+            4.8,
+            95,
+            Difficulty.EASY,
+            140,
+            Terrain.FOREST,
+            24.0316 to 49.8429,
+            24.0394 to 49.8461,
+            24.0438 to 49.8488,
+        ),
+        route(
+            2,
+            "Vynnyky Forest Trail",
+            11.2,
+            210,
+            Difficulty.MEDIUM,
+            310,
+            Terrain.FOREST,
+            24.1290 to 49.8170,
+            24.1440 to 49.8105,
+            24.1570 to 49.8030,
+        ),
+        route(
+            3,
+            "Rocky Ridge Traverse",
+            18.6,
+            390,
+            Difficulty.HARD,
+            920,
+            Terrain.ROCKY,
+            23.8910 to 49.6510,
+            23.9140 to 49.6600,
+            23.9400 to 49.6560,
+        ),
+        route(
+            4,
+            "Mountain Meadow Path",
+            8.4,
+            175,
+            Difficulty.MEDIUM,
+            460,
+            Terrain.MOUNTAIN,
+            23.9870 to 49.7310,
+            24.0020 to 49.7260,
+            24.0150 to 49.7190,
+        ),
+        route(
+            5,
+            "Lakeside Mixed Walk",
+            6.1,
+            120,
+            Difficulty.EASY,
+            90,
+            Terrain.MIXED,
+            24.0710 to 49.8680,
+            24.0800 to 49.8710,
+            24.0920 to 49.8660,
+        ),
+    )
+
+    override suspend fun search(criteria: RouteSearchCriteria, origin: GeoPoint): List<Route> {
+        return routes.filter { it.matches(criteria, origin) }
+    }
+}
+
+private class FailingRouteRepository : RouteRepository {
+    override suspend fun search(criteria: RouteSearchCriteria, origin: GeoPoint): List<Route> {
+        error("Routes are unavailable.")
+    }
+}
+
+private fun route(
+    id: Long,
+    name: String,
+    distanceKm: Double,
+    estimatedTimeMinutes: Int,
+    difficulty: Difficulty,
+    elevationGainMeters: Int,
+    terrain: Terrain,
+    vararg points: Pair<Double, Double>,
+) = Route(
+    id = id,
+    name = name,
+    description = name,
+    distanceKm = distanceKm,
+    estimatedTimeMinutes = estimatedTimeMinutes,
+    difficulty = difficulty,
+    elevationGainMeters = elevationGainMeters,
+    terrain = terrain,
+    geometry = RouteGeometry(points.map { (longitude, latitude) -> GeoPoint(longitude, latitude) }),
+)
 
 private class FakePointOfInterestRepository : PointOfInterestRepository {
     val submittedRatings = mutableListOf<Pair<Long, Int>>()

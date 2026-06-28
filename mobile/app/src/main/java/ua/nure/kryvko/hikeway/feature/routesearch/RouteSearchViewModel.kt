@@ -505,12 +505,12 @@ class RouteSearchViewModel(
                 .onSuccess { routes ->
                     _uiState.update { it.copy(routes = routes, isLoading = false) }
                 }
-                .onFailure {
+                .onFailure { error ->
                     _uiState.update {
                         it.copy(
                             routes = emptyList(),
                             isLoading = false,
-                            errorMessage = "Current location is unavailable.",
+                            errorMessage = error.userMessage("Routes are unavailable."),
                         )
                     }
                 }

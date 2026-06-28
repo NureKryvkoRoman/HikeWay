@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
 import org.junit.Test
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import ua.nure.kryvko.hikeway.core.model.PoiRating
 import ua.nure.kryvko.hikeway.core.model.PointOfInterest
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
@@ -82,5 +83,7 @@ private class FakePointOfInterestRepository : PointOfInterestRepository {
         )
     }
 
-    override suspend fun submitRating(poiId: Long, rating: Int) = Unit
+    override suspend fun submitRating(poiId: Long, rating: Int): PoiRating {
+        return PoiRating(rating.toDouble(), 1, rating)
+    }
 }

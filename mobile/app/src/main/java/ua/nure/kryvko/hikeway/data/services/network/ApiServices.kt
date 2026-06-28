@@ -7,6 +7,7 @@ import ua.nure.kryvko.hikeway.data.auth.AuthSessionFactory
 import ua.nure.kryvko.hikeway.data.auth.AuthSessionManager
 import ua.nure.kryvko.hikeway.data.services.backend.BackendAuthService
 import ua.nure.kryvko.hikeway.data.services.backend.PoiService
+import ua.nure.kryvko.hikeway.data.services.backend.RouteService
 import ua.nure.kryvko.hikeway.data.services.keycloak.KeycloakService
 import ua.nure.kryvko.hikeway.data.services.backend.SyncService
 
@@ -44,4 +45,5 @@ class ApiServices(
     )
     val sync: SyncService = authenticatedBackend.create(SyncService::class.java)
     val pois: PoiService = authenticatedBackend.create(PoiService::class.java)
+    val routes: RouteService = authenticatedBackend.create(RouteService::class.java)
 }

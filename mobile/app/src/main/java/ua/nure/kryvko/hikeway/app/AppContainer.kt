@@ -20,7 +20,7 @@ import ua.nure.kryvko.hikeway.core.location.createLocationProvider
 import ua.nure.kryvko.hikeway.data.routepicking.createRouteTrackingProvider
 import ua.nure.kryvko.hikeway.data.routes.CompositeRouteRepository
 import ua.nure.kryvko.hikeway.data.routes.local.RoomRouteRepository
-import ua.nure.kryvko.hikeway.data.routes.stub.StubRouteRepository
+import ua.nure.kryvko.hikeway.data.routes.remote.RemoteRouteRepository
 import ua.nure.kryvko.hikeway.data.services.network.ApiServices
 import ua.nure.kryvko.hikeway.data.sync.RetrofitSyncTransport
 import ua.nure.kryvko.hikeway.data.sync.RoomSyncLocalDataSource
@@ -127,8 +127,9 @@ class AppContainer(context: Context) {
         onLocalMutation = syncTrigger::invoke,
     )
     private val customRouteRepository: CustomRouteRepository = localRouteRepository
+    private val remoteRouteRepository = RemoteRouteRepository(apiServices.routes, gson)
     private val routeRepository: RouteRepository = CompositeRouteRepository(
-        listOf(StubRouteRepository(), localRouteRepository)
+        listOf(remoteRouteRepository, localRouteRepository)
     )
     private val pointOfInterestRepository: PointOfInterestRepository =
         RemotePointOfInterestRepository(apiServices.pois, gson)

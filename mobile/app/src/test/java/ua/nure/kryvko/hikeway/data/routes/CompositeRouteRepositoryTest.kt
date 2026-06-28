@@ -19,14 +19,14 @@ class CompositeRouteRepositoryTest {
     fun searchesAllRepositories() = runTest {
         val repository = CompositeRouteRepository(
             listOf(
-                StaticRouteRepository(listOf(route(1, "Built in"))),
+                StaticRouteRepository(listOf(route(1, "Remote"))),
                 StaticRouteRepository(listOf(route(2, "Local"))),
             )
         )
 
         val routes = repository.search(RouteSearchCriteria(), origin)
 
-        assertEquals(listOf("Built in", "Local"), routes.map { it.name })
+        assertEquals(listOf("Remote", "Local"), routes.map { it.name })
     }
 
     @Test
