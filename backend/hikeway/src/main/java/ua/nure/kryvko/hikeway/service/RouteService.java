@@ -5,19 +5,25 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import ua.nure.kryvko.hikeway.exception.InvalidPoiDataException;
 import ua.nure.kryvko.hikeway.exception.InvalidRouteGeometryException;
 import ua.nure.kryvko.hikeway.exception.RouteNotFoundException;
 import ua.nure.kryvko.hikeway.model.Route;
 import ua.nure.kryvko.hikeway.model.RouteGeometry;
 import ua.nure.kryvko.hikeway.model.geojson.GeoJsonLineString;
 import ua.nure.kryvko.hikeway.model.request.CreateRouteRequest;
+import ua.nure.kryvko.hikeway.model.request.RouteSearchRequest;
 import ua.nure.kryvko.hikeway.model.request.UpdateRouteRequest;
 import ua.nure.kryvko.hikeway.model.response.FullRouteResponse;
+import ua.nure.kryvko.hikeway.model.response.PageResponse;
 import ua.nure.kryvko.hikeway.model.response.RouteResponse;
+import ua.nure.kryvko.hikeway.model.response.RouteSearchResponse;
 import ua.nure.kryvko.hikeway.repository.RouteGeometryRepository;
 import ua.nure.kryvko.hikeway.repository.RouteRepository;
 
@@ -29,6 +35,7 @@ import java.util.List;
 @Service
 public class RouteService {
     private static final String LINE_STRING_TYPE = "LineString";
+    private static final int MAX_PAGE_SIZE = 100;
     private final RouteRepository routeRepository;
     private final RouteGeometryRepository routeGeometryRepository;
     private final RoutePoiService routePoiService;
@@ -43,6 +50,19 @@ public class RouteService {
         this.routeRepository = routeRepository;
         this.routeGeometryRepository = routeGeometryRepository;
         this.routePoiService = routePoiService;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<RouteSearchResponse> searchRoutes(RouteSearchRequest request) {
+        validateSearch(request);
+        var routes = routeRepository.searchPublishedRoutes(
+                request,
+                PageRequest.of(request.page(), request.size())
+        );
+        return PageResponse.from(
+                routes,
+                routes.stream().map(this::toSearchResponse).toList()
+        );
     }
 
     public FullRouteResponse createRoute(CreateRouteRequest request) {
@@ -139,6 +159,7 @@ public class RouteService {
                 route.getEstimatedTimeMinutes(),
                 route.getDifficulty(),
                 route.getElevationGain(),
+                route.getTerrain(),
                 route.getCreatedAt(),
                 route.getCreatedBy(),
                 geometry == null ? null : toGeoJson(geometry.getLine()),
@@ -155,10 +176,100 @@ public class RouteService {
                 route.getEstimatedTimeMinutes(),
                 route.getDifficulty(),
                 route.getElevationGain(),
+                route.getTerrain(),
                 route.getCreatedAt(),
                 route.getCreatedBy(),
                 routePoiService.summaries(route.getId())
         );
+    }
+
+    private RouteSearchResponse toSearchResponse(RouteGeometry geometry) {
+        Route route = geometry.getRoute();
+        return new RouteSearchResponse(
+                route.getId(),
+                route.getName(),
+                route.getDescription(),
+                route.getDistanceKm(),
+                route.getEstimatedTimeMinutes(),
+                route.getDifficulty(),
+                route.getElevationGain(),
+                route.getTerrain(),
+                route.getCreatedAt(),
+                route.getCreatedBy(),
+                toGeoJson(geometry.getLine())
+        );
+    }
+
+    private void validateSearch(RouteSearchRequest request) {
+        requirePage(request.page(), request.size());
+        requireNonNegative(request.minDistanceKm(), "Minimum distance must be non-negative");
+        requireNonNegative(request.maxDistanceKm(), "Maximum distance must be non-negative");
+        if (request.minDistanceKm() != null && request.maxDistanceKm() != null &&
+                request.minDistanceKm() > request.maxDistanceKm()) {
+            throw invalidRequest("Minimum distance must not exceed maximum distance");
+        }
+        requireNonNegative(request.minEstimatedTimeMinutes(), "Minimum estimated time must be non-negative");
+        requireNonNegative(request.maxEstimatedTimeMinutes(), "Maximum estimated time must be non-negative");
+        if (request.minEstimatedTimeMinutes() != null && request.maxEstimatedTimeMinutes() != null &&
+                request.minEstimatedTimeMinutes() > request.maxEstimatedTimeMinutes()) {
+            throw invalidRequest("Minimum estimated time must not exceed maximum estimated time");
+        }
+        validateProximity(request);
+    }
+
+    private void validateProximity(RouteSearchRequest request) {
+        boolean hasAnyProximity = request.longitude() != null ||
+                request.latitude() != null ||
+                request.maxProximityKm() != null;
+        if (!hasAnyProximity) {
+            return;
+        }
+        if (request.longitude() == null || request.latitude() == null || request.maxProximityKm() == null) {
+            throw invalidRequest("Longitude, latitude, and maxProximityKm must be provided together");
+        }
+        requireLongitude(request.longitude());
+        requireLatitude(request.latitude());
+        requirePositive(request.maxProximityKm(), "Maximum proximity must be greater than 0");
+    }
+
+    private void requirePage(int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw invalidRequest("Page must be non-negative and size must be 1 to 100");
+        }
+    }
+
+    private void requireNonNegative(Double value, String message) {
+        if (value != null && (!Double.isFinite(value) || value < 0)) {
+            throw invalidRequest(message);
+        }
+    }
+
+    private void requireNonNegative(Integer value, String message) {
+        if (value != null && value < 0) {
+            throw invalidRequest(message);
+        }
+    }
+
+    private void requirePositive(Double value, String message) {
+        if (!Double.isFinite(value) || value <= 0) {
+            throw invalidRequest(message);
+        }
+    }
+
+    private void requireLongitude(Double value) {
+        if (!Double.isFinite(value) || value < -180 || value > 180) {
+            throw invalidRequest("Longitude must be between -180 and 180");
+        }
+    }
+
+    private void requireLatitude(Double value) {
+        if (!Double.isFinite(value) || value < -90 || value > 90) {
+            throw invalidRequest("Latitude must be between -90 and 90");
+        }
+    }
+
+    private InvalidPoiDataException invalidRequest(String message) {
+        return new InvalidPoiDataException("INVALID_REQUEST", message);
     }
 
     private LineString createLineString(GeoJsonLineString geometry) {

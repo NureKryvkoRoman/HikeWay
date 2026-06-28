@@ -6,6 +6,6 @@ import ua.nure.kryvko.hikeway.model.Route;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface RouteRepository extends JpaRepository<Route, Long> {
+public interface RouteRepository extends JpaRepository<Route, Long>, RouteSearchRepository {
     Optional<Route> findByCreatedByAndClientId(String createdBy, UUID clientId);
 }

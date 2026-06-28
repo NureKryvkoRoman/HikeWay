@@ -5,12 +5,8 @@ import ua.nure.kryvko.hikeway.model.Terrain;
 import ua.nure.kryvko.hikeway.model.geojson.GeoJsonLineString;
 
 import java.time.Instant;
-import java.util.List;
 
-/**
- * Full route data, including GeoJson geometry and route metadata.
- */
-public record FullRouteResponse(
+public record RouteSearchResponse(
         Long id,
         String name,
         String description,
@@ -21,7 +17,6 @@ public record FullRouteResponse(
         Terrain terrain,
         Instant createdAt,
         String createdBy,
-        GeoJsonLineString geometry,
-        List<PoiResponses.Summary> pointsOfInterest
+        GeoJsonLineString geometry
 ) {
 }
