@@ -100,6 +100,34 @@ class RoutesControllerTest {
         verify(service).searchRoutes(request);
     }
 
+    @Test
+    void parsesLocationWithoutExplicitProximity() throws Exception {
+        var request = new RouteSearchRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                24.0316,
+                49.8429,
+                null,
+                0,
+                50
+        );
+        when(service.searchRoutes(eq(request)))
+                .thenReturn(new PageResponse<>(List.of(), 0, 50, 0, 0));
+
+        mockMvc.perform(get("/routes")
+                        .param("longitude", "24.0316")
+                        .param("latitude", "49.8429"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(50));
+
+        verify(service).searchRoutes(request);
+    }
+
     private RouteSearchResponse response() {
         return new RouteSearchResponse(
                 7L,

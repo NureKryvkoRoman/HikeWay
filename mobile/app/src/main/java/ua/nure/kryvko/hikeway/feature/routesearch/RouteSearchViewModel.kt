@@ -102,6 +102,7 @@ class RouteSearchViewModel(
     private var poiViewportJob: Job? = null
     private var lastPoiFetchCenter: GeoPoint? = null
     private var lastPoiFetchRadiusMeters: Double? = null
+    private var poiLoadRequestId = 0L
 
     init {
         centerOnCurrentLocation()
@@ -135,6 +136,10 @@ class RouteSearchViewModel(
 
     fun refreshCurrentSearch() {
         refresh(_uiState.value.appliedCriteria)
+    }
+
+    fun refreshPointsOfInterest() {
+        loadPointsOfInterest()
     }
 
     fun centerOnCurrentLocation() {
@@ -289,9 +294,10 @@ class RouteSearchViewModel(
             return
         }
         poiViewportJob?.cancel()
+        val requestId = nextPoiLoadRequestId()
         poiViewportJob = viewModelScope.launch {
             delay(POI_FETCH_DEBOUNCE_MILLIS)
-            fetchPoisNear(center, radiusMeters)
+            fetchPoisNear(center, radiusMeters, requestId)
         }
     }
 
@@ -518,36 +524,52 @@ class RouteSearchViewModel(
     }
 
     private fun loadPointsOfInterest(center: GeoPoint? = _uiState.value.mapCenter) {
+        val requestId = nextPoiLoadRequestId()
         viewModelScope.launch {
             if (center != null) {
-                fetchPoisNear(center, DEFAULT_POI_RADIUS_METERS)
+                fetchPoisNear(center, DEFAULT_POI_RADIUS_METERS, requestId)
             } else {
                 runCatching { getPointsOfInterest() }
                     .onSuccess { pois ->
-                        _uiState.update { it.copy(pointsOfInterest = pois) }
+                        if (isLatestPoiLoadRequest(requestId)) {
+                            _uiState.update { it.copy(pointsOfInterest = pois) }
+                        }
                     }
                     .onFailure {
-                        _uiState.update { state ->
-                            state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                        if (isLatestPoiLoadRequest(requestId)) {
+                            _uiState.update { state ->
+                                state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                            }
                         }
                     }
             }
         }
     }
 
-    private suspend fun fetchPoisNear(center: GeoPoint, radiusMeters: Double) {
+    private suspend fun fetchPoisNear(center: GeoPoint, radiusMeters: Double, requestId: Long) {
         runCatching { getNearbyPointsOfInterest(center, radiusMeters) }
             .onSuccess { pois ->
-                lastPoiFetchCenter = center
-                lastPoiFetchRadiusMeters = radiusMeters
-                _uiState.update { it.copy(pointsOfInterest = pois) }
+                if (isLatestPoiLoadRequest(requestId)) {
+                    lastPoiFetchCenter = center
+                    lastPoiFetchRadiusMeters = radiusMeters
+                    _uiState.update { it.copy(pointsOfInterest = pois) }
+                }
             }
             .onFailure {
-                _uiState.update { state ->
-                    state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                if (isLatestPoiLoadRequest(requestId)) {
+                    _uiState.update { state ->
+                        state.copy(errorMessage = state.errorMessage ?: "Points of interest are unavailable.")
+                    }
                 }
             }
     }
+
+    private fun nextPoiLoadRequestId(): Long {
+        poiLoadRequestId += 1
+        return poiLoadRequestId
+    }
+
+    private fun isLatestPoiLoadRequest(requestId: Long): Boolean = requestId == poiLoadRequestId
 
     private fun shouldFetchPois(center: GeoPoint, radiusMeters: Double): Boolean {
         val lastCenter = lastPoiFetchCenter ?: return true

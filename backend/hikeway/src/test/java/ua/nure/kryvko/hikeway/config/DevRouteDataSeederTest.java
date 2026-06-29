@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +24,6 @@ class DevRouteDataSeederTest {
     void seedsPublicRoutesWhenSeedOwnerHasNoRoutes() throws Exception {
         RouteRepository routeRepository = mock(RouteRepository.class);
         RouteGeometryRepository geometryRepository = mock(RouteGeometryRepository.class);
-        when(routeRepository.countByCreatedBy(DevRouteDataSeeder.CREATED_BY)).thenReturn(0L);
         when(routeRepository.save(any(Route.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(geometryRepository.save(any(RouteGeometry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -31,8 +31,8 @@ class DevRouteDataSeederTest {
 
         ArgumentCaptor<Route> routes = ArgumentCaptor.forClass(Route.class);
         ArgumentCaptor<RouteGeometry> geometries = ArgumentCaptor.forClass(RouteGeometry.class);
-        verify(routeRepository, org.mockito.Mockito.times(5)).save(routes.capture());
-        verify(geometryRepository, org.mockito.Mockito.times(5)).save(geometries.capture());
+        verify(routeRepository, times(5)).save(routes.capture());
+        verify(geometryRepository, times(5)).save(geometries.capture());
 
         Route first = routes.getAllValues().getFirst();
         assertEquals("High Castle Loop", first.getName());
@@ -52,10 +52,30 @@ class DevRouteDataSeederTest {
     }
 
     @Test
-    void skipsSeedingWhenSeedOwnerAlreadyHasRoutes() throws Exception {
+    void insertsOnlyMissingSeedRoutes() throws Exception {
         RouteRepository routeRepository = mock(RouteRepository.class);
         RouteGeometryRepository geometryRepository = mock(RouteGeometryRepository.class);
-        when(routeRepository.countByCreatedBy(DevRouteDataSeeder.CREATED_BY)).thenReturn(1L);
+        when(routeRepository.existsByClientIdOrName(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("High Castle Loop")
+        )).thenReturn(true);
+        when(routeRepository.save(any(Route.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(geometryRepository.save(any(RouteGeometry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        new DevRouteDataSeeder().seedDevRoutes(routeRepository, geometryRepository).run(null);
+
+        ArgumentCaptor<Route> routes = ArgumentCaptor.forClass(Route.class);
+        verify(routeRepository, times(4)).save(routes.capture());
+        assertFalse(routes.getAllValues().stream().anyMatch(route -> "High Castle Loop".equals(route.getName())));
+        verify(geometryRepository, times(4)).save(any(RouteGeometry.class));
+    }
+
+    @Test
+    void skipsSeedingWhenAllSeedRoutesAlreadyExist() throws Exception {
+        RouteRepository routeRepository = mock(RouteRepository.class);
+        RouteGeometryRepository geometryRepository = mock(RouteGeometryRepository.class);
+        when(routeRepository.existsByClientIdOrName(any(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(true);
 
         new DevRouteDataSeeder().seedDevRoutes(routeRepository, geometryRepository).run(null);
 

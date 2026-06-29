@@ -6,7 +6,6 @@ import org.locationtech.jts.geom.Point;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import ua.nure.kryvko.hikeway.model.PointOfInterest;
 import ua.nure.kryvko.hikeway.repository.PointOfInterestRepository;
 
@@ -14,7 +13,6 @@ import java.time.Instant;
 import java.util.List;
 
 @Configuration
-@Profile({"dev", "test", "development", "local"})
 public class DevPoiDataSeeder {
     private static final String OWNER_ID = "seed-poi-owner";
     private static final String OWNER_DISPLAY_NAME = "HikeWay seed";

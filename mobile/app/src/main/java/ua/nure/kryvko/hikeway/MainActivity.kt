@@ -130,6 +130,7 @@ class MainActivity : ComponentActivity() {
         ) {
             routeSearchViewModel.centerOnCurrentLocation()
             routeSearchViewModel.refreshCurrentSearch()
+            routeSearchViewModel.refreshPointsOfInterest()
         }
     }
 
@@ -187,6 +188,7 @@ fun HikeWayApp(
 
     LaunchedEffect(authState.username) {
         routeSearchViewModel.refreshCurrentSearch()
+        routeSearchViewModel.refreshPointsOfInterest()
     }
 
     if (isCreatingRoute) {
@@ -200,6 +202,7 @@ fun HikeWayApp(
                 isCreatingRoute = false
                 currentDestination = AppDestination.HOME
                 routeSearchViewModel.refreshCurrentSearch()
+                routeSearchViewModel.refreshPointsOfInterest()
             },
         )
         return

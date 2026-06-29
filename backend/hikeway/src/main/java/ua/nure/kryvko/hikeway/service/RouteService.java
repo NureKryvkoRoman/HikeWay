@@ -36,6 +36,7 @@ import java.util.List;
 public class RouteService {
     private static final String LINE_STRING_TYPE = "LineString";
     private static final int MAX_PAGE_SIZE = 100;
+    private static final double DEFAULT_PROXIMITY_KM = 30.0;
     private final RouteRepository routeRepository;
     private final RouteGeometryRepository routeGeometryRepository;
     private final RoutePoiService routePoiService;
@@ -54,6 +55,7 @@ public class RouteService {
 
     @Transactional(readOnly = true)
     public PageResponse<RouteSearchResponse> searchRoutes(RouteSearchRequest request) {
+        request = normalizeSearch(request);
         validateSearch(request);
         var routes = routeRepository.searchPublishedRoutes(
                 request,
@@ -63,6 +65,25 @@ public class RouteService {
                 routes,
                 routes.stream().map(this::toSearchResponse).toList()
         );
+    }
+
+    private RouteSearchRequest normalizeSearch(RouteSearchRequest request) {
+        if (hasLocation(request) && request.maxProximityKm() == null && !hasRouteFilters(request)) {
+            return new RouteSearchRequest(
+                    request.minDistanceKm(),
+                    request.maxDistanceKm(),
+                    request.minEstimatedTimeMinutes(),
+                    request.maxEstimatedTimeMinutes(),
+                    request.difficulties(),
+                    request.terrains(),
+                    request.longitude(),
+                    request.latitude(),
+                    DEFAULT_PROXIMITY_KM,
+                    request.page(),
+                    request.size()
+            );
+        }
+        return request;
     }
 
     public FullRouteResponse createRoute(CreateRouteRequest request) {
@@ -218,18 +239,32 @@ public class RouteService {
     }
 
     private void validateProximity(RouteSearchRequest request) {
-        boolean hasAnyProximity = request.longitude() != null ||
-                request.latitude() != null ||
-                request.maxProximityKm() != null;
-        if (!hasAnyProximity) {
+        boolean hasAnyLocation = hasLocation(request);
+        if (!hasAnyLocation && request.maxProximityKm() == null) {
             return;
         }
-        if (request.longitude() == null || request.latitude() == null || request.maxProximityKm() == null) {
-            throw invalidRequest("Longitude, latitude, and maxProximityKm must be provided together");
+        if (request.longitude() == null || request.latitude() == null) {
+            throw invalidRequest("Longitude and latitude must be provided together");
         }
         requireLongitude(request.longitude());
         requireLatitude(request.latitude());
-        requirePositive(request.maxProximityKm(), "Maximum proximity must be greater than 0");
+        if (request.maxProximityKm() != null) {
+            requirePositive(request.maxProximityKm(), "Maximum proximity must be greater than 0");
+        }
+    }
+
+    private boolean hasRouteFilters(RouteSearchRequest request) {
+        return request.minDistanceKm() != null ||
+                request.maxDistanceKm() != null ||
+                request.minEstimatedTimeMinutes() != null ||
+                request.maxEstimatedTimeMinutes() != null ||
+                (request.difficulties() != null && !request.difficulties().isEmpty()) ||
+                (request.terrains() != null && !request.terrains().isEmpty()) ||
+                request.maxProximityKm() != null;
+    }
+
+    private boolean hasLocation(RouteSearchRequest request) {
+        return request.longitude() != null || request.latitude() != null;
     }
 
     private void requirePage(int page, int size) {

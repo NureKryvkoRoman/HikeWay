@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import ua.nure.kryvko.hikeway.exception.InvalidPoiDataException;
@@ -21,6 +22,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,13 +81,65 @@ class RouteServiceTest {
                 null,
                 null,
                 24.1,
-                49.8,
                 null,
+                15.0,
                 0,
                 50
         );
 
         assertThrows(InvalidPoiDataException.class, () -> service.searchRoutes(request));
+    }
+
+    @Test
+    void appliesDefaultThirtyKmProximityWhenOnlyLocationIsProvided() {
+        var request = new RouteSearchRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                24.0316,
+                49.8429,
+                null,
+                0,
+                50
+        );
+        when(routeRepository.searchPublishedRoutes(
+                org.mockito.ArgumentMatchers.any(RouteSearchRequest.class),
+                eq(PageRequest.of(0, 50))
+        )).thenReturn(new PageImpl<>(List.of(routeGeometry()), PageRequest.of(0, 50), 1));
+
+        service.searchRoutes(request);
+
+        ArgumentCaptor<RouteSearchRequest> requestCaptor = ArgumentCaptor.forClass(RouteSearchRequest.class);
+        verify(routeRepository).searchPublishedRoutes(requestCaptor.capture(), eq(PageRequest.of(0, 50)));
+        assertEquals(24.0316, requestCaptor.getValue().longitude());
+        assertEquals(49.8429, requestCaptor.getValue().latitude());
+        assertEquals(30.0, requestCaptor.getValue().maxProximityKm());
+    }
+
+    @Test
+    void doesNotApplyDefaultProximityWhenOtherFiltersAreProvided() {
+        var request = new RouteSearchRequest(
+                null,
+                null,
+                null,
+                null,
+                Set.of(Difficulty.EASY),
+                null,
+                24.0316,
+                49.8429,
+                null,
+                0,
+                50
+        );
+        when(routeRepository.searchPublishedRoutes(request, PageRequest.of(0, 50)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
+
+        service.searchRoutes(request);
+
+        verify(routeRepository).searchPublishedRoutes(request, PageRequest.of(0, 50));
     }
 
     @Test

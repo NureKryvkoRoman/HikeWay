@@ -95,7 +95,7 @@ class RemoteRouteRepositoryTest {
     }
 
     @Test
-    fun omitsProximityGroupWhenProximityFilterIsAbsent() = runTest {
+    fun sendsLocationWithoutProximityFilter() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
                 """{"items":[],"page":0,"size":50,"totalElements":0,"totalPages":0}"""
@@ -104,7 +104,7 @@ class RemoteRouteRepositoryTest {
 
         repository.search(RouteSearchCriteria(), GeoPoint(longitude = 24.1, latitude = 49.8))
 
-        assertEquals("/routes?page=0&size=50", server.takeRequest().path)
+        assertEquals("/routes?longitude=24.1&latitude=49.8&page=0&size=50", server.takeRequest().path)
     }
 
     @Test
@@ -119,11 +119,14 @@ class RemoteRouteRepositoryTest {
     }
 
     @Test
-    fun treatsUnauthenticatedStartupFetchAsEmpty() = runTest {
+    fun convertsUnauthenticatedResponsesToApiFailures() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody(""))
 
-        val routes = repository.search(RouteSearchCriteria(), GeoPoint(longitude = 24.1, latitude = 49.8))
+        val error = runCatching {
+            repository.search(RouteSearchCriteria(), GeoPoint(longitude = 24.1, latitude = 49.8))
+        }.exceptionOrNull()
 
-        assertTrue(routes.isEmpty())
+        assertTrue(error is ApiException)
+        assertEquals(401, (error as ApiException).statusCode)
     }
 }

@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Configuration
-@Profile({"dev", "test", "development", "local"})
+@Profile({"default", "dev", "test", "development", "local"})
 public class DevRouteDataSeeder {
     static final String CREATED_BY = "seed-route-owner";
 
@@ -33,11 +33,11 @@ public class DevRouteDataSeeder {
             RouteGeometryRepository geometryRepository
     ) {
         return ignored -> {
-            if (routeRepository.countByCreatedBy(CREATED_BY) > 0) {
-                return;
-            }
             Instant now = Instant.now();
             seedRoutes().forEach(seed -> {
+                if (routeRepository.existsByClientIdOrName(seed.clientId(), seed.name())) {
+                    return;
+                }
                 Route route = new Route();
                 route.setClientId(seed.clientId());
                 route.setName(seed.name());

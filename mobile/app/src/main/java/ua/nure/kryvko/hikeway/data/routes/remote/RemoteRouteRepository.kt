@@ -23,18 +23,13 @@ class RemoteRouteRepository(
                 maxEstimatedTimeMinutes = criteria.estimatedTimeMinutes?.last,
                 difficulties = criteria.difficulties.map { it.name }.sorted().takeIf { it.isNotEmpty() },
                 terrains = criteria.terrains.map { it.name }.sorted().takeIf { it.isNotEmpty() },
-                longitude = criteria.maxProximityKm?.let { origin.longitude },
-                latitude = criteria.maxProximityKm?.let { origin.latitude },
+                longitude = origin.longitude,
+                latitude = origin.latitude,
                 maxProximityKm = criteria.maxProximityKm,
                 size = DEFAULT_PAGE_SIZE,
             ).items.map { it.toDomain() }
         }.getOrElse {
-            val apiException = it.toApiException(gson, "Routes are unavailable.")
-            if (apiException.statusCode == 401) {
-                emptyList()
-            } else {
-                throw apiException
-            }
+            throw it.toApiException(gson, "Routes are unavailable.")
         }
     }
 }
