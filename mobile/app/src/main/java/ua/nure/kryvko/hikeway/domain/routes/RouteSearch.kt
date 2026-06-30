@@ -10,6 +10,7 @@ import ua.nure.kryvko.hikeway.core.model.Difficulty
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
 import ua.nure.kryvko.hikeway.core.model.Route
 import ua.nure.kryvko.hikeway.core.model.Terrain
+import javax.inject.Inject
 
 data class RouteSearchCriteria(
     val distanceKm: ClosedFloatingPointRange<Double>? = null,
@@ -27,7 +28,7 @@ interface CustomRouteRepository {
     suspend fun save(route: Route): Long
 }
 
-class SearchRoutesUseCase(
+class SearchRoutesUseCase @Inject constructor(
     private val repository: RouteRepository,
     private val locationProvider: LocationProvider,
 ) {
@@ -36,7 +37,7 @@ class SearchRoutesUseCase(
     }
 }
 
-class GetCurrentLocationUseCase(
+class GetCurrentLocationUseCase @Inject constructor(
     private val locationProvider: LocationProvider,
 ) {
     suspend operator fun invoke(): GeoPoint {
@@ -44,7 +45,7 @@ class GetCurrentLocationUseCase(
     }
 }
 
-class SaveCustomRouteUseCase(
+class SaveCustomRouteUseCase @Inject constructor(
     private val repository: CustomRouteRepository,
 ) {
     suspend operator fun invoke(route: Route): Long = repository.save(route)

@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
 
 data class AuthSession(
     val accessToken: String,
@@ -48,7 +49,7 @@ class MutableCurrentUserProvider : CurrentUserProvider {
     }
 }
 
-class LoginUseCase(
+class LoginUseCase @Inject constructor(
     private val repository: AuthRepository,
 ) {
     suspend operator fun invoke(username: String, password: String): AuthSession {
@@ -56,7 +57,7 @@ class LoginUseCase(
     }
 }
 
-class SignUpUseCase(
+class SignUpUseCase @Inject constructor(
     private val repository: AuthRepository,
 ) {
     suspend operator fun invoke(request: SignUpRequest) {
@@ -64,7 +65,7 @@ class SignUpUseCase(
     }
 }
 
-class RestoreSessionUseCase(
+class RestoreSessionUseCase @Inject constructor(
     private val repository: AuthRepository,
 ) {
     suspend operator fun invoke(): AuthSession? {
@@ -72,7 +73,7 @@ class RestoreSessionUseCase(
     }
 }
 
-class LogoutUseCase(
+class LogoutUseCase @Inject constructor(
     private val repository: AuthRepository,
 ) {
     suspend operator fun invoke() {
@@ -80,7 +81,7 @@ class LogoutUseCase(
     }
 }
 
-class ObserveAuthSessionUseCase(
+class ObserveAuthSessionUseCase @Inject constructor(
     private val repository: AuthRepository,
 ) {
     operator fun invoke(): Flow<AuthSession?> = repository.observeSession()

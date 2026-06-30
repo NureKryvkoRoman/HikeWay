@@ -1,8 +1,8 @@
 package ua.nure.kryvko.hikeway.feature.routesearch
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +36,7 @@ import ua.nure.kryvko.hikeway.domain.routepicking.RouteTrackingProvider
 import ua.nure.kryvko.hikeway.domain.routes.GetCurrentLocationUseCase
 import ua.nure.kryvko.hikeway.domain.routes.RouteSearchCriteria
 import ua.nure.kryvko.hikeway.domain.routes.SearchRoutesUseCase
+import javax.inject.Inject
 
 data class RouteSearchUiState(
     val routes: List<Route> = emptyList(),
@@ -61,7 +62,8 @@ data class RouteSearchUiState(
     val poiCreationErrorMessage: String? = null,
 )
 
-class RouteSearchViewModel(
+@HiltViewModel
+class RouteSearchViewModel @Inject constructor(
     private val searchRoutes: SearchRoutesUseCase,
     private val getCurrentLocation: GetCurrentLocationUseCase,
     private val routeTrackingProvider: RouteTrackingProvider,
@@ -281,56 +283,4 @@ class RouteSearchViewModel(
         hikeTrackingController.finishRoute()
     }
 
-    companion object {
-        fun factory(
-            searchRoutes: SearchRoutesUseCase,
-            getCurrentLocation: GetCurrentLocationUseCase,
-            routeTrackingProvider: RouteTrackingProvider,
-            saveCompletedHike: SaveCompletedHikeUseCase,
-            timeProvider: TimeProvider,
-            activeTimer: ActiveTimer,
-            getPointsOfInterest: GetPointsOfInterestUseCase,
-            getNearbyPointsOfInterest: GetNearbyPointsOfInterestUseCase,
-            getPointOfInterestDetail: GetPointOfInterestDetailUseCase,
-            createPointOfInterest: CreatePointOfInterestUseCase,
-            updatePointOfInterest: UpdatePointOfInterestUseCase,
-            deletePointOfInterest: DeletePointOfInterestUseCase,
-            ratePointOfInterest: RatePointOfInterestUseCase,
-            removePointOfInterestRating: RemovePointOfInterestRatingUseCase,
-            addPoiComment: AddPoiCommentUseCase,
-            updatePoiComment: UpdatePoiCommentUseCase,
-            deletePoiComment: DeletePoiCommentUseCase,
-            uploadPoiPhoto: UploadPoiPhotoUseCase,
-            updatePoiPhoto: UpdatePoiPhotoUseCase,
-            deletePoiPhoto: DeletePoiPhotoUseCase,
-        ): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return RouteSearchViewModel(
-                        searchRoutes = searchRoutes,
-                        getCurrentLocation = getCurrentLocation,
-                        routeTrackingProvider = routeTrackingProvider,
-                        saveCompletedHike = saveCompletedHike,
-                        timeProvider = timeProvider,
-                        activeTimer = activeTimer,
-                        getPointsOfInterest = getPointsOfInterest,
-                        getNearbyPointsOfInterest = getNearbyPointsOfInterest,
-                        getPointOfInterestDetail = getPointOfInterestDetail,
-                        createPointOfInterest = createPointOfInterest,
-                        updatePointOfInterest = updatePointOfInterest,
-                        deletePointOfInterest = deletePointOfInterest,
-                        ratePointOfInterest = ratePointOfInterest,
-                        removePointOfInterestRating = removePointOfInterestRating,
-                        addPoiCommentUseCase = addPoiComment,
-                        updatePoiCommentUseCase = updatePoiComment,
-                        deletePoiCommentUseCase = deletePoiComment,
-                        uploadPoiPhotoUseCase = uploadPoiPhoto,
-                        updatePoiPhotoUseCase = updatePoiPhoto,
-                        deletePoiPhotoUseCase = deletePoiPhoto,
-                    ) as T
-                }
-            }
-        }
-    }
 }

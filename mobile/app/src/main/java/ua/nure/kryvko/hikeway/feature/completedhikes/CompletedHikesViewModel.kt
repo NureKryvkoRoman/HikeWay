@@ -1,8 +1,8 @@
 package ua.nure.kryvko.hikeway.feature.completedhikes
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.nure.kryvko.hikeway.domain.hikelogging.HikeLog
 import ua.nure.kryvko.hikeway.domain.hikelogging.ObserveCompletedHikesUseCase
+import javax.inject.Inject
 
 data class CompletedHikesUiState(
     val hikes: List<HikeLog> = emptyList(),
@@ -19,7 +20,8 @@ data class CompletedHikesUiState(
     val errorMessage: String? = null,
 )
 
-class CompletedHikesViewModel(
+@HiltViewModel
+class CompletedHikesViewModel @Inject constructor(
     private val observeCompletedHikes: ObserveCompletedHikesUseCase,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CompletedHikesUiState())
@@ -59,17 +61,4 @@ class CompletedHikesViewModel(
         _uiState.update { it.copy(selectedHike = null) }
     }
 
-    companion object {
-        fun factory(
-            observeCompletedHikes: ObserveCompletedHikesUseCase,
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(CompletedHikesViewModel::class.java)) {
-                    return CompletedHikesViewModel(observeCompletedHikes) as T
-                }
-                throw IllegalArgumentException("Unknown ViewModel class")
-            }
-        }
-    }
 }

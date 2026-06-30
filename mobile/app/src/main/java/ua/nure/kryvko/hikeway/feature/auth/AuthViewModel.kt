@@ -1,8 +1,8 @@
 package ua.nure.kryvko.hikeway.feature.auth
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +14,7 @@ import ua.nure.kryvko.hikeway.domain.auth.ObserveAuthSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.RestoreSessionUseCase
 import ua.nure.kryvko.hikeway.domain.auth.SignUpRequest
 import ua.nure.kryvko.hikeway.domain.auth.SignUpUseCase
+import javax.inject.Inject
 
 enum class AuthStatus {
     CHECKING,
@@ -41,7 +42,8 @@ data class AuthUiState(
     val errorMessage: String? = null,
 )
 
-class AuthViewModel(
+@HiltViewModel
+class AuthViewModel @Inject constructor(
     private val login: LoginUseCase,
     private val signUp: SignUpUseCase,
     private val restoreSession: RestoreSessionUseCase,
@@ -210,26 +212,6 @@ class AuthViewModel(
         }
     }
 
-    companion object {
-        fun factory(
-            login: LoginUseCase,
-            signUp: SignUpUseCase,
-            restoreSession: RestoreSessionUseCase,
-            logout: LogoutUseCase,
-            observeAuthSession: ObserveAuthSessionUseCase,
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return AuthViewModel(
-                    login = login,
-                    signUp = signUp,
-                    restoreSession = restoreSession,
-                    logout = logout,
-                    observeAuthSession = observeAuthSession,
-                ) as T
-            }
-        }
-    }
 }
 
 private val ua.nure.kryvko.hikeway.domain.auth.AuthSession.isAdmin: Boolean

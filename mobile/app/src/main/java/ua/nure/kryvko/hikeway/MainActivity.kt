@@ -6,76 +6,30 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModelProvider
-import ua.nure.kryvko.hikeway.app.AppContainer
+import dagger.hilt.android.AndroidEntryPoint
 import ua.nure.kryvko.hikeway.app.HikeWayApp
+import ua.nure.kryvko.hikeway.data.sync.SyncWorkScheduler
 import ua.nure.kryvko.hikeway.feature.auth.AuthViewModel
 import ua.nure.kryvko.hikeway.feature.completedhikes.CompletedHikesViewModel
 import ua.nure.kryvko.hikeway.feature.routecreation.RouteCreationViewModel
 import ua.nure.kryvko.hikeway.feature.routesearch.RouteSearchViewModel
 import ua.nure.kryvko.hikeway.ui.theme.HikeWayTheme
-import ua.nure.kryvko.hikeway.data.sync.SyncWorkScheduler
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private lateinit var routeSearchViewModel: RouteSearchViewModel
+    private val authViewModel: AuthViewModel by viewModels()
+    private val routeSearchViewModel: RouteSearchViewModel by viewModels()
+    private val completedHikesViewModel: CompletedHikesViewModel by viewModels()
+    private val routeCreationViewModel: RouteCreationViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         SyncWorkScheduler.schedule(applicationContext)
         requestLocationPermissionForProduction()
-        val container = AppContainer(applicationContext)
-        val authViewModel = ViewModelProvider(
-            this,
-            AuthViewModel.factory(
-                login = container.login,
-                signUp = container.signUp,
-                restoreSession = container.restoreSession,
-                logout = container.logout,
-                observeAuthSession = container.observeAuthSession,
-            ),
-        )[AuthViewModel::class.java]
-        routeSearchViewModel = ViewModelProvider(
-            this,
-            RouteSearchViewModel.factory(
-                searchRoutes = container.searchRoutes,
-                getCurrentLocation = container.getCurrentLocation,
-                routeTrackingProvider = container.routeTrackingProvider,
-                saveCompletedHike = container.saveCompletedHike,
-                timeProvider = container.timeProvider,
-                activeTimer = container.activeTimer,
-                getPointsOfInterest = container.getPointsOfInterest,
-                getNearbyPointsOfInterest = container.getNearbyPointsOfInterest,
-                getPointOfInterestDetail = container.getPointOfInterestDetail,
-                createPointOfInterest = container.createPointOfInterest,
-                updatePointOfInterest = container.updatePointOfInterest,
-                deletePointOfInterest = container.deletePointOfInterest,
-                ratePointOfInterest = container.ratePointOfInterest,
-                removePointOfInterestRating = container.removePointOfInterestRating,
-                addPoiComment = container.addPoiComment,
-                updatePoiComment = container.updatePoiComment,
-                deletePoiComment = container.deletePoiComment,
-                uploadPoiPhoto = container.uploadPoiPhoto,
-                updatePoiPhoto = container.updatePoiPhoto,
-                deletePoiPhoto = container.deletePoiPhoto,
-            ),
-        )[RouteSearchViewModel::class.java]
-        val completedHikesViewModel = ViewModelProvider(
-            this,
-            CompletedHikesViewModel.factory(
-                observeCompletedHikes = container.observeCompletedHikes,
-            ),
-        )[CompletedHikesViewModel::class.java]
-        val routeCreationViewModel = ViewModelProvider(
-            this,
-            RouteCreationViewModel.factory(
-                saveCustomRoute = container.saveCustomRoute,
-                getPointsOfInterest = container.getPointsOfInterest,
-                ratePointOfInterest = container.ratePointOfInterest,
-            ),
-        )[RouteCreationViewModel::class.java]
 
         setContent {
             HikeWayTheme {

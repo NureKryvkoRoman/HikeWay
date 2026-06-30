@@ -1,8 +1,8 @@
 package ua.nure.kryvko.hikeway.feature.routecreation
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlin.math.ceil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +19,7 @@ import ua.nure.kryvko.hikeway.domain.pois.GetPointsOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.pois.RatePointOfInterestUseCase
 import ua.nure.kryvko.hikeway.domain.routes.SaveCustomRouteUseCase
 import ua.nure.kryvko.hikeway.domain.routes.distanceKm
+import javax.inject.Inject
 
 private const val WALKING_SPEED_KMH = 4.0
 private const val PLACEHOLDER_ELEVATION_GAIN_METERS = 0
@@ -47,7 +48,8 @@ data class RouteCreationUiState(
     val estimatedTimeMinutes: Int = estimateTimeMinutes(distanceKm)
 }
 
-class RouteCreationViewModel(
+@HiltViewModel
+class RouteCreationViewModel @Inject constructor(
     private val saveCustomRoute: SaveCustomRouteUseCase,
     private val getPointsOfInterest: GetPointsOfInterestUseCase,
     private val ratePointOfInterest: RatePointOfInterestUseCase,
@@ -187,25 +189,6 @@ class RouteCreationViewModel(
     fun reset() {
         _uiState.value = RouteCreationUiState()
         loadPointsOfInterest()
-    }
-
-    companion object {
-        fun factory(
-            saveCustomRoute: SaveCustomRouteUseCase,
-            getPointsOfInterest: GetPointsOfInterestUseCase,
-            ratePointOfInterest: RatePointOfInterestUseCase,
-        ): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return RouteCreationViewModel(
-                        saveCustomRoute = saveCustomRoute,
-                        getPointsOfInterest = getPointsOfInterest,
-                        ratePointOfInterest = ratePointOfInterest,
-                    ) as T
-                }
-            }
-        }
     }
 
     private fun loadPointsOfInterest() {

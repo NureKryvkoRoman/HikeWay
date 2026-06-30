@@ -6,6 +6,7 @@ import ua.nure.kryvko.hikeway.core.model.PoiPhoto
 import ua.nure.kryvko.hikeway.core.model.PoiPhotoUpload
 import ua.nure.kryvko.hikeway.core.model.PoiRating
 import ua.nure.kryvko.hikeway.core.model.PointOfInterest
+import javax.inject.Inject
 
 interface PointOfInterestRepository {
     suspend fun getPointsOfInterest(): List<PointOfInterest>
@@ -49,7 +50,7 @@ interface PointOfInterestRepository {
     }
 }
 
-class GetPointsOfInterestUseCase(
+class GetPointsOfInterestUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(): List<PointOfInterest> {
@@ -57,7 +58,7 @@ class GetPointsOfInterestUseCase(
     }
 }
 
-class GetNearbyPointsOfInterestUseCase(
+class GetNearbyPointsOfInterestUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(center: GeoPoint, radiusMeters: Double): List<PointOfInterest> {
@@ -66,7 +67,7 @@ class GetNearbyPointsOfInterestUseCase(
     }
 }
 
-class GetPointOfInterestDetailUseCase(
+class GetPointOfInterestDetailUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long): PointOfInterest {
@@ -74,7 +75,7 @@ class GetPointOfInterestDetailUseCase(
     }
 }
 
-class CreatePointOfInterestUseCase(
+class CreatePointOfInterestUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(
@@ -90,7 +91,7 @@ class CreatePointOfInterestUseCase(
     }
 }
 
-class UpdatePointOfInterestUseCase(
+class UpdatePointOfInterestUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(
@@ -108,7 +109,7 @@ class UpdatePointOfInterestUseCase(
     }
 }
 
-class DeletePointOfInterestUseCase(
+class DeletePointOfInterestUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long) {
@@ -116,7 +117,7 @@ class DeletePointOfInterestUseCase(
     }
 }
 
-class RatePointOfInterestUseCase(
+class RatePointOfInterestUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, rating: Int): PoiRating {
@@ -125,7 +126,7 @@ class RatePointOfInterestUseCase(
     }
 }
 
-class RemovePointOfInterestRatingUseCase(
+class RemovePointOfInterestRatingUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long): PoiRating {
@@ -133,7 +134,7 @@ class RemovePointOfInterestRatingUseCase(
     }
 }
 
-class AddPoiCommentUseCase(
+class AddPoiCommentUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, text: String): PoiComment {
@@ -141,7 +142,7 @@ class AddPoiCommentUseCase(
     }
 }
 
-class UpdatePoiCommentUseCase(
+class UpdatePoiCommentUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, commentId: Long, text: String): PoiComment {
@@ -149,7 +150,7 @@ class UpdatePoiCommentUseCase(
     }
 }
 
-class DeletePoiCommentUseCase(
+class DeletePoiCommentUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, commentId: Long) {
@@ -157,7 +158,7 @@ class DeletePoiCommentUseCase(
     }
 }
 
-class UploadPoiPhotoUseCase(
+class UploadPoiPhotoUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, upload: PoiPhotoUpload): PoiPhoto {
@@ -167,7 +168,7 @@ class UploadPoiPhotoUseCase(
     }
 }
 
-class UpdatePoiPhotoUseCase(
+class UpdatePoiPhotoUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, photoId: Long, caption: String?): PoiPhoto {
@@ -175,7 +176,7 @@ class UpdatePoiPhotoUseCase(
     }
 }
 
-class DeletePoiPhotoUseCase(
+class DeletePoiPhotoUseCase @Inject constructor(
     private val repository: PointOfInterestRepository,
 ) {
     suspend operator fun invoke(poiId: Long, photoId: Long) {

@@ -4,6 +4,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import ua.nure.kryvko.hikeway.core.model.GeoPoint
+import javax.inject.Inject
 
 data class HikeLog(
     val id: Long = 0,
@@ -22,13 +23,13 @@ interface HikeLogRepository {
     fun observeAll(): Flow<List<HikeLog>>
 }
 
-class SaveCompletedHikeUseCase(
+class SaveCompletedHikeUseCase @Inject constructor(
     private val repository: HikeLogRepository,
 ) {
     suspend operator fun invoke(log: HikeLog): Long = repository.save(log)
 }
 
-class ObserveCompletedHikesUseCase(
+class ObserveCompletedHikesUseCase @Inject constructor(
     private val repository: HikeLogRepository,
 ) {
     operator fun invoke(): Flow<List<HikeLog>> = repository.observeAll()
