@@ -46,7 +46,3 @@ class JwtDecoder(
         return gson.fromJson(decodedPayload, JwtPayload::class.java)
     }
 }
-
-fun extractJwtSubject(accessToken: String): String {
-    return JwtDecoder(Gson()).subject(accessToken)
-}
