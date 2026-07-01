@@ -4,16 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,8 +20,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import ua.nure.kryvko.hikeway.R
 import ua.nure.kryvko.hikeway.feature.auth.AuthScreen
 import ua.nure.kryvko.hikeway.feature.auth.AuthStatus
 import ua.nure.kryvko.hikeway.feature.auth.AuthViewModel
@@ -43,7 +42,7 @@ fun HikeWayApp(
     routeCreationViewModel: RouteCreationViewModel,
 ) {
     val authState by authViewModel.uiState.collectAsState()
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
+    var currentDestination by rememberSaveable { mutableStateOf(AppDestination.ROUTES) }
     var isCreatingRoute by rememberSaveable { mutableStateOf(false) }
 
     when (authState.status) {
@@ -74,7 +73,7 @@ fun HikeWayApp(
             },
             onSaved = {
                 isCreatingRoute = false
-                currentDestination = AppDestination.HOME
+                currentDestination = AppDestination.ROUTES
                 routeSearchViewModel.refreshCurrentSearch()
                 routeSearchViewModel.refreshPointsOfInterest()
             },
@@ -85,24 +84,32 @@ fun HikeWayApp(
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestination.entries.forEach { destination ->
+                val selected = destination == currentDestination
                 item(
-                    icon = { Icon(destination.icon, contentDescription = destination.label) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(destination.iconRes(selected)),
+                            contentDescription = destination.label,
+                            modifier = Modifier.size(40.dp),
+                            tint = Color.Unspecified,
+                        )
+                    },
                     label = { Text(destination.label) },
-                    selected = destination == currentDestination,
+                    selected = selected,
                     onClick = { currentDestination = destination },
                 )
             }
         }
     ) {
         when (currentDestination) {
-            AppDestination.HOME -> RouteSearchScreen(
+            AppDestination.ROUTES -> RouteSearchScreen(
                 viewModel = routeSearchViewModel,
                 onCreateRoute = { isCreatingRoute = true },
                 isAdmin = authState.isAdmin,
             )
             AppDestination.COMPLETED_HIKES -> CompletedHikesScreen(completedHikesViewModel)
             AppDestination.PROFILE -> ProfileScreen(onLogOut = authViewModel::logOut)
-            else -> PlaceholderScreen(currentDestination.label)
+            AppDestination.MAP -> PlaceholderScreen(currentDestination.label)
         }
     }
 }
@@ -131,10 +138,15 @@ private fun ProfileScreen(onLogOut: () -> Unit) {
 
 enum class AppDestination(
     val label: String,
-    val icon: ImageVector,
+    @param:DrawableRes val activeIconRes: Int,
+    @param:DrawableRes val inactiveIconRes: Int,
 ) {
-    HOME("Home", Icons.Default.Home),
-    COMPLETED_HIKES("Completed hikes", Icons.AutoMirrored.Filled.List),
-    FAVORITES("Favorites", Icons.Default.Favorite),
-    PROFILE("Profile", Icons.Default.AccountBox),
+    ROUTES("Routes", R.drawable.ic_nav_routes, R.drawable.ic_nav_routes_inactive),
+    MAP("Map", R.drawable.ic_nav_map, R.drawable.ic_nav_map_inactive),
+    COMPLETED_HIKES("Saved", R.drawable.ic_nav_saved, R.drawable.ic_nav_saved_inactive),
+    PROFILE("Profile", R.drawable.ic_nav_profile, R.drawable.ic_nav_profile_inactive),
+    ;
+
+    @DrawableRes
+    fun iconRes(selected: Boolean): Int = if (selected) activeIconRes else inactiveIconRes
 }
